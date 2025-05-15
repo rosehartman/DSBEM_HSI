@@ -1,0 +1,10 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+sal_conversions.csv
+*.RData
+.RDataTmp
+.RDataTmp1
+.RDataTmp2
+SMSCG_wq_data_2017-2024.csv

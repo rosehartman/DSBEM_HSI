@@ -1,0 +1,664 @@
+---
+title: "Zooplankton salinity relationships in Suisun"
+author: "Sam Bashevkin, updated by Rosemary hartman"
+date: "8/26/2022 - updated spring 2025"
+output: 
+  html_document:
+    toc: true
+    toc_float:
+      collapsed: false
+editor_options: 
+  chunk_output_type: console
+knit: (function(input, ...) {
+    )
+    })
+    rmarkdown::render(
+      input,
+      envir = globalenv()
+      output_dir = here::here('docs'),
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(scipen=999)
+```
+
+# Load packages
+
+```{r, message=FALSE, warning=FALSE}
+library(conflicted)
+library(MASS)
+library(dplyr)
+library(zooper)
+library(lubridate)
+library(readr)
+library(tidyr)
+library(ggplot2)
+library(sf)
+library(readxl)
+library(stringr)
+library(mgcv)
+library(purrr)
+library(deltamapr)
+library(scales)
+library(here)
+
+conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
+```
+
+
+
+# Load and wrangle data
+
+We used all the available zooplankton data in the 'zooper' integrated dataset from EMP, Summer Twonet, 20-mm and Fall Midwater Trawl. We ended up restricting it to 1995-2022.
+
+Available here: https://github.com/InteragencyEcologicalProgram/zooper
+
+```{r}
+zoop_data<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT"), Time_consistency = FALSE)
+```
+
+
+Read in zoop mass conversions. These are conversions based on an average weight per taxon and life stage. Some are better than others, particularly "other cladocera" which can have a huge range of sizes.
+
+The zoop_groups file is a crosswalk that lines up the names of each taxa to the groups used by the bioenergetic model.
+
+```{r}
+
+
+#Mass conversions
+zoop_mass_conversions<-read_excel(here("Data/Biomass conversions.xlsx"), sheet="Micro and Meso-zooplankton")%>%
+  mutate(Taxname=case_when(Taxname=="Sinocalanus"~"Sinocalanus doerrii", # Change to help this match to zoop data
+                           TRUE ~ Taxname),
+         Taxlifestage=paste(Taxname, Lifestage))%>%
+  select(Taxlifestage, CarbonWeight_ug)
+
+#Read in zoop groupings
+zoop_groups<-read_csv(here("Data/zoopcrosswalk2.csv"), col_types=cols_only(Taxlifestage="c", IBMR="c"))%>%
+  distinct()
+
+```
+
+
+Start processing the zoop data
+```{r}
+zoop_data_mass<-zoop_data%>%
+  mutate(Taxlifestage=str_remove(Taxlifestage, fixed("_UnID")), doy = yday(Date), Month = month(Date))%>%
+  filter(!Undersampled, SizeClass != "Macro", Year >1995, Month %in% c(6:10)) %>% #only meso and microzooplankton, not undersampled categories. Also just summer and fall.
+  
+  mutate(Taxlifestage=recode(Taxlifestage, `Synchaeta bicornis Adult`="Synchaeta Adult", # Change some names to match to biomass conversion dataset
+                             `Pseudodiaptomus Adult`="Pseudodiaptomus forbesi Adult",
+                             `Acanthocyclops vernalis Adult`="Acanthocyclops Adult"))%>%
+  
+  left_join(zoop_mass_conversions, by="Taxlifestage")%>% # Add biomass conversions
+  left_join(zoop_groups, by="Taxlifestage")%>% # Add IBMR categories
+  mutate(BPUE=CPUE*CarbonWeight_ug)%>% # Convert CPUE to biomass per unit effort
+  
+  filter(!is.na(BPUE) & !is.na(Latitude) & !is.na(Longitude) & !is.na(SalSurf))%>% # Removes any data without BPUE, which is currently restricted to Rotifera Adult, Copepoda Larva, and H. longirostris from STN. Also removes 20mm and EMP EZ stations without coordinates
+  
+  group_by(IBMR)%>%
+  select(SampleID, Station, Latitude, Longitude, SalSurf, Date, Year, IBMR, BPUE)%>%
+  group_by(across(-BPUE))%>%
+  summarise(BPUE=sum(BPUE), .groups="drop")%>% # Sum each IBMR categories
+  
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>% #convert to spatial data frame
+  st_transform(crs=st_crs(deltamapr::R_DSIBM)) %>%  #add IBMR regions
+  st_join(deltamapr::R_DSIBM %>%
+            select(SUBREGION)) %>%
+  st_drop_geometry() %>% 
+  filter(SUBREGION %in% c("NW Suisun","SW Suisun","NE Suisun","SE Suisun","Confluence", "Suisun Marsh", "Lower Sacramento River"))%>% #just subregions of interest
+  mutate(doy=yday(Date), #Day of year
+         Month=month(Date), # Month
+         Year_fac=factor(Year), # Factor year for model random effect
+         Station_fac=factor(Station), # Factor station for model random effect
+         across(c(SalSurf, doy), list(s=~(.x-mean(.x))/sd(.x))), # Center and standardize predictors
+         BPUE_log1p=log(BPUE+1)) # log1p transform BPUE for model
+
+```
+
+Check sample size
+```{r message=FALSE, warning=FALSE}
+zoop_sample_size <- zoop_data_mass %>% 
+  group_by(SampleID,Year,Month,SUBREGION,Station) %>% 
+  summarise(BPUE=sum(BPUE)) %>% 
+  mutate(Samplesize=1) %>%
+  group_by(Year, Month, SUBREGION) %>% 
+  summarise(mean_BPUE=mean(BPUE),Samplesize=sum(Samplesize)) %>%
+  filter(Year>=1995)
+
+ggplot(zoop_sample_size, aes(x=Year, y=Month, fill=Samplesize))+
+  geom_tile()+
+  scale_y_continuous(breaks=1:12, labels=month(1:12, label=T))+
+  scale_fill_viridis_c(breaks=c(1,5,10,15,20))+
+  facet_wrap(~SUBREGION)+
+  theme_bw()
+```
+
+All the remaining brackish regions have sufficient sample size with the exception of NE Suisun. As such, NE Suisun is to be combined with SE Suisun while the rest of the regions are to be analyzed on their own.
+
+Create a new column with IBMR edited regions to accomodate combination of NE and SE Suisun regions.
+```{r}
+zoop_data_mass$Subregion_edit<-ifelse(zoop_data_mass$SUBREGION%in%c("NE Suisun", "SE Suisun"), "East Suisun", zoop_data_mass$SUBREGION)
+
+save(zoop_data_mass, file = "data/zoop_data_mass.RData")
+
+```
+
+A few graphs to compare actual zooplankton data to model outputs later.
+
+```{r}
+zoopmass2016 = filter(zoop_data_mass, Year == 2016) %>%
+  filter(Month %in% c(6:10)) %>%
+  group_by(Subregion_edit, IBMR) %>%
+  summarise(Biomass = exp(mean(BPUE_log1p)))
+
+ggplot(zoopmass2016, aes(x = Subregion_edit,y = Biomass, fill = IBMR))+ geom_col()
+
+zoopmass20162 = mutate(zoopmass2016, 
+                       BigRegion = case_when(Subregion_edit %in% c("East Suisun", "NW Suisun", "SW Suisun") ~ "Suisun Bay", 
+                                             Subregion_edit == "Suisun Marsh" ~ "Suisun Marsh",
+                                             Subregion_edit == "Confluence" ~ "Confluence")) %>%
+  filter(!is.na(BigRegion)) %>%
+  group_by(BigRegion, IBMR) %>%
+  summarize(Biomass = mean(Biomass))
+
+pal = c("red", "darkred", "green",  "darkblue", "cyan", "pink", "darkgreen", "purple", "tan", "orange", "palegreen", "salmon", "grey")
+ggplot(zoopmass20162, aes(x = BigRegion,y = Biomass, fill = IBMR))+ geom_col()+
+  scale_fill_manual(values = pal)
+ggplot(filter(zoopmass20162, IBMR %in% c("pdiapfor", "pdiapjuv")), aes(x = BigRegion, y = Biomass, fill = IBMR))+
+  geom_col()
+
+ggplot(filter(zoop_data_mass, Subregion_edit == "Confluence", IBMR == "pdiapfor"),
+       aes(x = SalSurf, y = BPUE_log1p))+ geom_point()+ geom_smooth()
+
+ggplot(filter(zoop_data_mass, Subregion_edit %in% c("Confluence", "Suisun Marsh"), IBMR == "pdiapfor",
+  Month %in% c(6:10)),
+       aes(x = Subregion_edit, y = BPUE))+ geom_boxplot()
+
+summary(filter(zoop_data_mass, Subregion_edit == "Confluence", IBMR == "pdiapfor")$BPUE)
+
+```
+
+
+
+# Model
+
+## Prediction data
+
+Set up prediction data for model
+```{r}
+# Min year to start models
+year_min<-1995
+
+#This sets up the data for predicting later. It's all combintations of IBMR, salinity, and region
+
+newdata_function<-function(region, data=zoop_data_mass, quant=0.99){
+  
+  lower<-(1-quant)/(2)
+  upper<-1-lower
+  
+  data_filt<-data%>%
+    filter(Subregion_edit%in%region & Year >= year_min)
+  
+  # Calculate monthly quantiles of salinity
+  month_sal<-data_filt%>%
+    group_by(Month)%>%
+    summarise(l=quantile(SalSurf, lower),
+              u=quantile(SalSurf, upper), .groups="drop")
+  
+  newdata<-expand_grid(date=seq(ymd("2001-06-01"), ymd("2001-10-31"), by = "day"), # all the days in a non-leap year
+                       SalSurf=seq(round(min(data_filt$SalSurf), 1), 
+                                   round(max(data_filt$SalSurf), 1), by=0.1))%>% # Salinity sequence nicely rounded to 1 decimal
+    mutate(Month=month(date),
+           doy=yday(date), # Day of year
+           SalSurf_s=(SalSurf-mean(data$SalSurf))/sd(data$SalSurf), # center and standardize salinity to match data
+           doy_s=(doy-mean(data$doy))/sd(data$doy))%>% # center and standardize doy to match data
+    left_join(month_sal, by="Month")%>%
+    filter(SalSurf >= l & SalSurf <= u)%>% # Remove any salinity values outside the quantiles for each month
+    select(Month, doy, doy_s, SalSurf, SalSurf_s)
+  
+}
+
+#create data for each subregion
+newdata<-map(set_names(unique(zoop_data_mass$Subregion_edit)), newdata_function)
+```
+
+## Posterior prediction function
+
+```{r}
+# Function to generate posterior predictions from a gam model
+# From https://stats.stackexchange.com/questions/190348/can-i-use-bootstrapping-to-estimate-the-uncertainty-in-a-maximum-value-of-a-gam
+predict_posterior<-function(model, newdata, exclude, n=499, seed=999){
+  Xp <- predict(model, newdata=newdata, type="lpmatrix", exclude=exclude, newdata.guaranteed=TRUE) ## map coefs to fitted curves
+  beta <- coef(model)
+  Vb   <- vcov(model) ## posterior mean and cov of coefs
+  set.seed(seed)
+  mrand <- mvrnorm(n, beta, Vb) ## simulate n rep coef vectors from posterior
+  pred<-matrix(nrow=nrow(newdata), ncol=n)
+  ilink <- family(model)$linkinv
+  for (i in seq_len(n)) { 
+    pred[,i]   <- ilink(Xp %*% mrand[i, ])
+  }
+  colnames(pred)<-paste("draw", 1:n, sep="_")
+  pred<-as_tibble(pred)
+  return(pred)
+}
+```
+
+## Model fitting
+
+Function to run a generalized addadive model over every IBMR group and region.
+
+Each model is the log-transformed BPUE as predicted by the tensor product smooth of salinity and day of year, with year (as a factor), and station as random effects.
+
+```{r}
+sal_model<-function(group,region,new_data=newdata){
+  
+  cat("<<<<<<<<<<<<<<<<<<<<<<< modeling", group, region, ">>>>>>>>>>>>>>>>>>>>>>>>>\n\n")
+  
+  new_data<-new_data[[region]]
+  
+  data<-filter(zoop_data_mass, IBMR==group & Subregion_edit==region & Year>=year_min)
+  
+  par(mfrow=c(2,2))
+  
+  if(length(unique(data$Station_fac))>1){
+    model<-gam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cs")) + 
+                 s(Year_fac, bs="re") + s(Station_fac, bs="re"),
+               data=data, 
+               method="REML")
+    
+    random_effects<-c("s(Year_fac)", "s(Station_fac)")
+    
+  }else{
+    
+    model<-gam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cc")) + 
+                 s(Year_fac, bs="re"),
+               data=data, 
+               method="REML")
+    
+    random_effects<-c("s(Year_fac)")
+  }
+  
+  cat("-------------gam check-------------\n")
+ # gam.check(model)
+  
+  cat("\n\n-------------summary-------------\n")
+  print(summary(model))
+  
+  sal<-predict_posterior(model, new_data, random_effects)%>%
+    bind_cols(new_data%>% # Add covariate columns before these columns
+                select(-doy_s, -SalSurf_s), 
+              .)
+  return(sal)
+}
+```
+
+Apply model to all groups and regions
+
+```{r}
+
+#Set up data frame of all regions and IBMR categories
+#I had issues with the computer crashing when I used the lower sac river region with Limnothona, so I took it out.
+model_factors<-expand_grid(IBMR=unique(zoop_data_mass$IBMR),
+                           Subregion_edit=unique(zoop_data_mass$Subregion_edit))%>%
+  mutate(IBMR=set_names(IBMR, paste(IBMR, Subregion_edit))) %>%
+  filter(Subregion_edit != "Lower Sacramento River")
+
+#now run the model over every region and IBMR group. The output is a list of what biomass
+#you get for each salinity that is normally seen in each region.
+sal_conversionsa<-pmap_dfr(model_factors, function(IBMR, Subregion_edit) sal_model(IBMR, Subregion_edit), .id = "IBMR_region")
+
+#turn it into a data fame and make it more useful. 
+sal_conversions = bind_rows(sal_conversionsa)%>%
+  mutate(IBMR=sapply(IBMR_region, function(x) str_split(x, " ", n=2)[[1]][1]),
+         Region=factor(sapply(IBMR_region, function(x) str_split(x, " ", n=2)[[1]][2]),
+                       levels=c("Confluence", "Suisun Marsh", "East Suisun", 
+                                "NW Suisun", "SW Suisun", "Lower Sacramento River")),
+         Month=as.integer(Month))%>%
+  select(-IBMR_region)%>%
+  relocate(Region, Month, IBMR, SalSurf)
+
+#save the results
+#save(sal_conversions,  file = "outputs/salinityConversions.RData")
+```
+
+
+# Apply model
+
+Now we use the table of predictions of biomass at each salnitiy and the modeled salintiy to see what biomass would be in each mdoel scenario.
+
+Load in SMSCG modeled salinity
+```{r, message=FALSE}
+#OK, here is where we need to upload new salinities. 
+
+#The salnity files are in a bit of a weird format, so it took some doing to straeighen them out.
+extract_after_first_space <- function(input_string) {
+  return(gsub("^\\S+\\s+", "", input_string))
+}
+
+salinity2016names = read_csv("data/2016_combined_salinity_ibmr.csv", col_names = F)[c(1,2),]
+
+sal2016names = t(salinity2016names) %>%
+  as.data.frame() %>%
+  mutate(Name = paste(V1, V2))
+
+salinity2016data = read_csv("data/2016_combined_salinity_ibmr.csv", col_names = F, skip =3)
+
+names(salinity2016data) = sal2016names$Name
+
+sal2016 = pivot_longer(salinity2016data, cols = c(`10800-3-m Confluence`:last_col()), names_to = "Scenario2", values_to = "Salinity") %>%
+  mutate(Region = extract_after_first_space(Scenario2)) %>%
+  rename(Date = `scenario region`)
+
+sal2016$Scenariox = str_split(sal2016$Scenario2, " ")
+sal2016$Scenario = sapply(sal2016$Scenariox, first)
+
+#sal2016 is the good version. 
+
+
+```
+
+OK, now do it for 2024
+
+```{r}
+
+salinity2024names = read_csv("data/2024_combined_salinity_ibmr.csv", col_names = F)[c(1,2),]
+
+sal2024names = t(salinity2016names) %>%
+  as.data.frame() %>%
+  mutate(Name = paste(V1, V2))
+
+salinity2024data = read_csv("data/2024_combined_salinity_ibmr.csv", col_names = F, skip =3)
+
+names(salinity2024data) = sal2024names$Name
+
+sal2024 = pivot_longer(salinity2024data, cols = c(`10800-3-m Confluence`:last_col()), names_to = "Scenario2", values_to = "Salinity") %>%
+  mutate(Region = extract_after_first_space(Scenario2)) %>%
+  rename(Date = `scenario region`)
+
+sal2024$Scenariox = str_split(sal2024$Scenario2, " ")
+sal2024$Scenario = sapply(sal2024$Scenariox, first)
+
+```
+
+
+
+Calculate zoop abundance difference between each scenario and the baseline.
+
+This was origionally one very long process, but I broke it into four steps because it was too much all at once and I kept having issues.
+
+
+```{r}
+
+#first take the salinity data and expand it to include all IBMR groups.
+zoop_saladjusted2016<-sal2016%>%
+  select(-Scenario2, -Scenariox) %>%
+  distinct() %>%
+  mutate(Subregion_edit=if_else(Region%in%c("NE Suisun", "SE Suisun"), "East Suisun", as.character(Region))) %>%
+mutate(Salinity=as.character(Salinity), Year = 2016,  DOY = yday(Date))%>%
+  left_join(distinct(model_factors)) %>%
+  ungroup()
+
+#join in salinity conversions so you get biomass
+step2= zoop_saladjusted2016%>%
+  left_join(sal_conversions%>%
+              mutate(SalSurf=as.character(SalSurf)),
+            by=c("Subregion_edit"="Region",
+                 "DOY"="doy",
+                 "Salinity"="SalSurf",
+                 "IBMR"="IBMR"))
+
+
+#back-transform biomass from the log version to the real version
+step3 = step2%>%
+  mutate(across(starts_with("draw_"), ~exp(.x)-1))%>%
+  pivot_longer(starts_with("draw_"), names_prefix="draw_", names_to="draw", values_to="fit")%>%
+  mutate(fit=if_else(fit<0, 0, fit))%>%
+  pivot_wider(names_from="Scenario", values_from="fit")
+
+#calculate the median and 95% confidence interval across simulations.
+step4 = step3%>%
+  mutate(across(c(`10800-3-m`:last_col()), ~.x/as.numeric(Salinity)))%>%
+  group_by(Region, Year, DOY, IBMR)%>%
+  summarise(across(c(`10800-3-m`:last_col()), 
+                   list(median=~median(.x, na.rm=T), 
+                        l95=~quantile(.x, 0.025, na.rm=T), 
+                        u95=~quantile(.x, 0.975, na.rm=T))), 
+            .groups="drop")
+
+
+write_csv(step4, here("Outputs", "sdm zoop sal adjustments.csv"))
+step4 = read_csv("Outputs/sdm zoop sal adjustments.csv")
+```
+
+
+This next step is just a tedious process of putting it in a better format for graphing.
+
+```{r}
+
+zoopsmedian = pivot_longer(step4,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "Biomass") %>%
+filter(!str_detect(Scenario, "95"), Region %in% c("Confluence", "NW Suisun", "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_median"))
+
+
+
+zoopsU95 = pivot_longer(step4,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "BiomassU95") %>%
+filter(str_detect(Scenario, "u95"), Region %in% c("Confluence", "NW Suisun",  "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_u95"))
+
+
+zoopsl95 = pivot_longer(step4,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "BiomassL95") %>%
+filter(str_detect(Scenario, "l95"), Region %in% c("Confluence", "NW Suisun", "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_l95"))
+
+zoopsconverted = left_join(zoopsmedian, zoopsU95)%>%
+                             left_join(zoopsl95)
+
+ggplot(zoopsmedian, aes(x = DOY, y = Biomass, color = Scenario)) +
+  facet_grid(Region~IBMR)+ geom_line()+ scale_y_log10()
+
+```
+
+Average biomass of pseudodiaptomus juveniles and adults in Suisun Marhs and Suisun bay.
+
+I used the geometric mean (mean of the log-transformed pseudodiaptomus) since that levels out the super high points, but I'm not 100% that it's the rigth way to go. 
+
+```{r}
+
+#calculate the mean biomass
+zoopsave = zoopsconverted %>%
+  filter(IBMR %in% c("pdiapfor", "pdiapjuv")) %>%
+  group_by(Scenario, Year, DOY, Region) %>%
+  summarize(Biomass = sum(Biomass), U95 = sum(BiomassU95), L95 = sum(BiomassL95)) %>%
+  group_by(Scenario,  Region) %>%
+  summarize(MeanBiomass = mean(Biomass, na.rm =T), sdbiomass = sd(Biomass, na.rm=T), 
+            MeanU95 = exp(mean(log(U95+0.01), na.rm =T)),
+            MeanL95 = exp(mean(log(L95+0.01), na.rm =T)),
+            GeoMeanBiomass = exp(mean(log(Biomass+0.01), na.rm =T)), sdgio = sd(log(Biomass+0.01), na.rm=T), lower = exp(mean(log(Biomass+0.01), na.rm =T)-sdgio),
+            upper = exp(mean(log(Biomass+0.01), na.rm =T)+sdgio)) %>%
+  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m", "10800-60d", "10800-b",
+                                         "15000-3-m", "15000-60d", "15000-b", "21000")))
+
+ggplot(zoopsave, aes(x = Scenario, y = MeanBiomass, fill = Scenario))+ geom_col()+
+  facet_wrap(~Region)+scale_y_log10()
+
+ggplot(zoopsave, aes(x = Scenario, y = GeoMeanBiomass, fill = Scenario))+ geom_col()+
+  geom_errorbar(aes(ymin = MeanL95, ymax = MeanU95))+
+  facet_wrap(~Region)+scale_y_log10()+
+  theme(axis.text.x = element_text(angle = 90))
+
+summary(zoopsmedian$Biomass)
+
+```
+
+Repeat it for the 2024 data
+
+
+```{r}
+zoop_saladjusted2024<-sal2024%>%
+  select(-Scenario2, -Scenariox) %>%
+  distinct() %>%
+  mutate(Subregion_edit=if_else(Region%in%c("NE Suisun", "SE Suisun"), "East Suisun", as.character(Region))) %>%
+mutate(Salinity=as.character(Salinity), Year = 2024,  DOY = yday(Date))%>%
+  left_join(distinct(model_factors)) %>%
+  ungroup()%>%
+  filter(Subregion_edit %in% c("Confluence", "East Suisun", "NW Suisun", "SW Suisun", "Suisun Marsh"),
+         DOY %in% c(152:304))
+
+step2_2024= zoop_saladjusted2024 %>%
+  left_join(sal_conversions%>%
+              mutate(SalSurf=as.character(SalSurf)),
+            by=c("Subregion_edit"="Region",
+                 "DOY"="doy",
+                 "Salinity"="SalSurf",
+                 "IBMR"="IBMR"))
+
+
+
+step3_2024 = step2_2024%>%
+  mutate(across(starts_with("draw_"), ~exp(.x)-1))%>%
+  pivot_longer(starts_with("draw_"), names_prefix="draw_", names_to="draw", values_to="fit")%>%
+  mutate(fit=if_else(fit<0, 0, fit))%>%
+  pivot_wider(names_from="Scenario", values_from="fit")
+
+step4_2024 = step3_2024%>%
+  mutate(across(c(`10800-3-m`:last_col()), ~.x/as.numeric(Salinity)))%>%
+  group_by(Region, Year, DOY, IBMR)%>%
+  summarise(across(c(`10800-3-m`:last_col()), 
+                   list(median=~median(.x, na.rm=T), 
+                        l95=~quantile(.x, 0.025, na.rm=T), 
+                        u95=~quantile(.x, 0.975, na.rm=T))), 
+            .groups="drop")
+
+write_csv(step4_2024, here("Outputs", "sdm zoop sal adjustments2024.csv"))
+step4_2024 = read_csv("Outputs/sdm zoop sal adjustments2024.csv")
+
+
+save(sal_conversions, sal2016, step4, step4_2024, sal2024, file = "C:/Users/rhartman/Documents/DS BEM_HSI/outputs/SalinityStuff.RData")
+
+#write.csv(sal_conversions, "sal_conversions.csv")
+
+```
+
+
+
+```{r}
+zoopsmedian2024 = pivot_longer(step4_2024,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "Biomass") %>%
+filter(!str_detect(Scenario, "95"), Region %in% c("Confluence", "NW Suisun", "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_median"))
+
+
+
+zoopsU952024 = pivot_longer(step4_2024,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "BiomassU95") %>%
+filter(str_detect(Scenario, "u95"), Region %in% c("Confluence", "NW Suisun", "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_u95"))
+
+
+zoopsl952024 = pivot_longer(step4_2024,  cols = c(`10800-3-m_median`:last_col()),
+       names_to = "Scenario", values_to = "BiomassL95") %>%
+filter(str_detect(Scenario, "l95"), Region %in% c("Confluence", "NW Suisun", "SW Suisun",
+                                                  "NE Suisun", "East Suisun", "Suisun Marsh",
+                                                  "SE Suisun")) %>%
+  mutate(Scenario = str_remove(Scenario, "_l95"))
+
+zoopsconverted2024 = left_join(zoopsmedian2024, zoopsU952024)%>%
+                             left_join(zoopsl952024)
+
+zoopsave2024 = zoopsconverted2024 %>%
+  filter(IBMR %in% c("pdiapfor", "pdiapjuv")) %>%
+  group_by(Scenario, Year, DOY, Region) %>%
+  summarize(Biomass = sum(Biomass), U95 = sum(BiomassU95), L95 = sum(BiomassL95)) %>%
+  group_by(Scenario,  Region) %>%
+  summarize(MeanBiomass = mean(Biomass, na.rm =T), sdbiomass = sd(Biomass, na.rm=T), 
+            MeanU95 = exp(mean(log(U95+0.01), na.rm =T)),
+            MeanL95 = exp(mean(log(L95+0.01), na.rm =T)),
+            GeoMeanBiomass = exp(mean(log(Biomass+0.01), na.rm =T)), sdgio = sd(log(Biomass+0.01), na.rm=T), lower = exp(mean(log(Biomass+0.01), na.rm =T)-sdgio),
+            upper = exp(mean(log(Biomass+0.01), na.rm =T)+sdgio)) %>%
+  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m", "10800-60d", "10800-b",
+                                         "15000-3-m", "15000-60d", "15000-b", "21000")))
+
+ggplot(zoopsave2024, aes(x = Scenario, y = MeanBiomass, fill = Scenario))+ geom_col()+
+  facet_wrap(~Region)+scale_y_log10()
+```
+
+
+Plots of all pseudodiaptomus - both years
+
+```{r}
+allzoopsave = bind_rows(mutate(zoopsave, Year = "2016"), mutate(zoopsave2024, Year = "2024"))
+
+ggplot(allzoopsave, aes(x = Scenario, y = GeoMeanBiomass, fill = Scenario, group = Year))+ geom_col(position = "dodge", color = "grey", aes(alpha = Year))+
+  scale_alpha_manual(values = c(0.6, 1))+
+  facet_wrap(~Region)+scale_y_log10()+
+  geom_errorbar(aes(ymin = MeanL95, ymax = MeanU95), position = "dodge")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ylab("Mean summer Pseudodiaptomus biomass")
+
+ggsave("plots/pseudobiomass.png", device = "png", width =10, height =7)
+
+write.csv(allzoopsave, "outputs/allzoopsave.csv")
+
+pseudoSuisun = allzoopsave %>%
+  mutate(BigRegion = case_when(Region %in% c("SE Suisun", "NW Suisun", "NE Suisun", "SW Suisun") ~ "Suisun Bay",
+                               Region == "Suisun Marsh" ~ "Suisun Marsh",
+                               TRUE ~ Region)) %>%
+  group_by(BigRegion, Scenario, Year) %>%
+  summarize(MeanBiomass = mean(GeoMeanBiomass), MeanU95 = mean(MeanU95), MeanL95 = mean(MeanL95))
+
+write.csv(pseudoSuisun, "outputs/pseudoSuisun.csv")
+
+
+ggplot(pseudoSuisun, aes(x = Scenario, y = MeanBiomass, fill = Scenario, group = Year))+ geom_col(position = "dodge", color = "grey", aes(alpha = Year))+
+  scale_alpha_manual(values = c(0.6, 1))+
+  facet_wrap(~BigRegion)+scale_y_log10()+
+  geom_errorbar(aes(ymin = MeanL95, ymax = MeanU95), position = "dodge")+
+  theme(axis.text.x = element_text(angle = 90))+
+  ylab("Mean summer Pseudodiaptomus biomass")
+
+
+```
+
+
+plost of all zoops all together
+
+
+
+```{r}
+zoopsmedALL = bind_rows(zoopsmedian, zoopsmedian2024) %>%
+  mutate(Scenario = str_remove(Scenario, "_median")) %>%
+  filter(DOY %in% c(153:305))%>%
+  mutate(BigRegion = case_when(Region %in% c("SE Suisun", "NW Suisun", "NE Suisun", "SW Suisun") ~ "Suisun Bay",
+                               Region == "Suisun Marsh" ~ "Suisun Marsh",
+                               TRUE ~ Region)) %>%
+  group_by(BigRegion, Scenario, Year, IBMR) %>%
+  summarize(MeanBiomass = mean(Biomass, na.rm =T), sdbiomass = sd(Biomass, na.rm=T), 
+            GeoMeanBiomass = exp(mean(log(Biomass+0.01), na.rm =T)))
+
+
+ggplot(zoopsmedALL, aes(x = Scenario, y = GeoMeanBiomass, fill = IBMR))+
+  geom_col(color = "grey30")+
+  facet_wrap(Year~BigRegion)+
+  ylab("Mean summer-fall biomass (mg/m3)")
+
+```
+
+
+

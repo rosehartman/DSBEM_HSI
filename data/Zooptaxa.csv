@@ -1,0 +1,145 @@
+Taxa,IBMR,Biomass
+Acartiella copepodid,acartela,1.16
+Acartiella sinensis,acartela,2.67
+Acartiella sinensis adult,acartela,2.67
+Copepod nauplii,allcopnaup,0.1
+Copepodid nauplii,allcopnaup,0.07
+Eurytemora nauplii,allcopnaup,0.07
+Pseudodiaptomus nauplii,allcopnaup,0.07
+Sinocalanus nauplii,allcopnaup,0.07
+Hyalella,other,8
+Daphnia,daphnia,4
+Eurytemora affinis adult,eurytem,3.55
+Eurytemora affinis copepodid,eurytem,1.44
+Eurytemora affinis copepodite,eurytem,1.44
+Limnoithona,limno,0.13
+Limnoithona sinensis adult,limno,0.13
+Limnoithona copepodid,limno,0.04
+Limnoithona copepodite,limno,0.04
+Limnoithona sinensis,limno,0.13
+Limnoithona tetraspina,limno,0.13
+Limnoithona tetraspina adult,limno,0.13
+Calanoid adult,othcalad,2.66
+Diaptomus,othcalad,2.66
+Diaptomidae copepodite,othcalad,1.4
+Hesperodiaptomus franciscanus,othcalad,2.66
+Osphranticum copepodid,othcalad,2.66
+Osphranticum labronectum,othcalad,2.66
+Sinocalanus doerrii adult,othcalad,3.41
+Skistodiaptomus pallidus,othcalad,2.66
+Tortanus,othcalad,15.89
+Calanoid copepodid,othcaljuv,1.15
+Diaptomus copepodid,othcaljuv,1.4
+Sinocalanus doerrii copepodid,othcaljuv,1.81
+Tortanus copepodid,othcaljuv,7.95
+Alona,othclad,1
+Alonella,othclad,1
+Anchistropus,othclad,1
+Bosmina,othclad,1
+Ceriodaphnia,othclad,1
+Chydorus,othclad,1
+Diaphanosoma,othclad,1
+Disparalona,othclad,1
+Dunhevedia,othclad,1
+Graptoleberis,othclad,1
+Ilyocryptus,othclad,1
+Kurzia,othclad,1
+Macrothrix,othclad,1
+Moina,othclad,1
+Monospilus,othclad,1
+Monospilus dispar,othclad,1
+Picripleuroxus,othclad,1
+Pleuroxus,othclad,1
+Pseudochydorus,othclad,1
+Simocephalus,othclad,1
+Acanthocyclops vernalis adult,othcyc,3.36
+Acanthocyclops vernalis copepodid,othcyc,2
+Acanthocyclopsp adult,othcyc,3.36
+Acartia copepodid,othcyc,1.3
+Acartia,othcyc,2.98
+Cyclopoid adult,othcyc,0.2
+Cyclopoid copepodid,othcyc,0.1
+Cyclopoid copepodite,othcyc,0.1
+Diacyclops thomasi,othcyc,0.5
+Ectocyclops phaleratus,othcyc,0.5
+Eucyclops,othcyc,0.5
+Eucyclops agilis,othcyc,0.5
+Eucyclops elegans,othcyc,0.5
+Eucyclops pectinifer,othcyc,0.5
+Eucyclops prionophorus,othcyc,0.5
+Eucyclops adult,othcyc,0.5
+Macrocyclops adult,othcyc,0.5
+Macrocyclops albidus,othcyc,0.5
+Mesocyclops edax,othcyc,0.5
+Microcyclops adult,othcyc,0.5
+Microcyclops rubellus,othcyc,0.5
+Oithona,othcyc,0.2
+Oithona copepodid,othcyc,0.07
+Oithona davisae,othcyc,0.2
+Oithona similis,othcyc,0.2
+Paracyclops,othcyc,0.5
+Paracyclops chiltoni,othcyc,0.5
+Paracyclops chitoni,othcyc,0.5
+Paracyclops poppei,othcyc,0.5
+Tropocyclops prasinus,othcyc,0.5
+Tropocylcops prasinus,othcyc,0.5
+Americorophium,other,8
+Amphipod,other,8
+Annelida,other,1
+Asplanchna,other,0.3
+Barnacles,other,3.8
+Barnacle nauplii,other,3.8
+Bivalve,other,1
+Bivalvia veliger,other,1
+Bivalve veliger,other,0.5
+Brachionus,other,0.3
+Chironomidae larvae,other,2
+Cladocera nauplii,other,0.5
+Corophium,other,8
+Crab zoea,other,3
+Cumacean,other,5
+Euchlanis,other,0.3
+Eurycercus,other,0.3
+Gammarus,other,8
+Gammaridae,other,8
+Gammarus daiberi,other,8
+Gastropod,other,1
+Gastropod veliger,other,0.3
+Harpaticoids,other,1
+Harpaticoid,other,1
+Hydrachnidia,other,1
+Hydrachnidae,other,1
+Hydroptilidae larvae,other,1
+Insect larvae,other,1
+Isopod,other,5
+Keratella,other,0.3
+Lecane,other,0.3
+Leydigia,other,0.3
+Mysids,other,8
+Nematoda,other,1
+Notholca,other,0.3
+Ostracods,other,1
+Ostracod,other,1
+Plationus,other,0.3
+Platyias,other,0.3
+Polyarthra,other,0.3
+Polychaete larvae,other,1
+Rotifers,other,0.3
+Rotifer,other,0.3
+Tanaidacea,other,5
+Tardigrada,other,0.3
+Testudinella,other,0.3
+Trichocerca,other,0.3
+Trichotria,other,0.3
+Turbellaria,other,0.3
+UNID Insect adult,other,2
+Pseudodiaptomus forbesi adult,pdiapfor,2.66
+Pseudodiaptomus forbesi copepodid,pdiapjuv,1.15
+Pseudodiaptomus forbesi copepodite,pdiapjuv,1.15
+Annelid,,
+Baby Clam,,
+Baby snail,,
+Camptocercus,othclad,2
+Chironomidae pupae,other,2
+Cladocera,othclad,2
+Clam,,

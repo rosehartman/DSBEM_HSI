@@ -1,0 +1,125 @@
+Taxlifestage,EMP_Code,CageCode,Carbon_weight_ug,Notes
+Acanthocyclops_UnID Adult,,Acanthocyclops adult,3.36,
+Acanthocyclops Adult,ACANTHO,Acanthocyclops sp. adult,3.36,
+NA,,Acanthocyclops sp. copepodid,1.68,Half of Acantho adult
+Acartiella sinensis Adult,ACARTELA,Acartiella sinensis adult,2.67,
+Acartiella sinensis Juvenile,ASINEJUV,Acartiella sinensis copepodid,1.16,
+,,Alona spp,1,Use other cladoceran value
+,,Americorophium spinicorne ,,Use LW
+,,Amphipod Egg,NA,Don't count
+,,Amphipoda ,,Use LW
+,,Amphipoda parts ,NA,Don't count
+,,Annelida,,
+,,Aphididae (winged) adult,,
+Asplanchna_UnID Adult,ASPLANCH,Asplanchna spp,0.3,
+Cirripedia_UnID Larva,BARNNAUP,Barnacle nauplii,3.8,
+,,Bivalve,,
+,,Bivalve veliger,,
+Bosmina longirostris Adult,BOSMINA,Bosmina spp,0.6,
+,,Brachionus spp,0.1,Use other rotifer value
+Calanoida_UnID Adult,OTHCALAD,Calanoida adult,3,
+Calanoida_UnID Juvenile,CALJUV,Calanoida copepodid,1.5,
+NA,,Calanoida nauplis,0.1,
+,,Ceriodaphnia spp,1,Use other cladoceran value
+,,Chironomidae larva,17.6,From diet study data. Carbon weight = wet weight (440ug) *.04
+,,Chironomidae larvae,17.6,From diet study data. Carbon weight = wet weight (440ug) *.04
+,,Chironomidae pupae,,
+,,Chydorus spp,1,Use other cladoceran value
+Cladocera_UnID Adult,OTHCLADO,Cladocera adult,1,
+,,Cladocera nauplii,,
+Copepoda_UnID Larva,COPNAUP,Copepoda nauplis,0.1,
+,,Copepodid UNID nauplii,0.1,
+,,Corophiidae juvenile,NA,Use LW
+Decapoda_UnID Larva,CRABZOEA,Crab zoea,3,
+,,Cumacean ,13.2,Use Nippoleucon value
+,,Cumella vulgaris ,13.2,Cumacean. Use Nippoleucon value
+,,Cyclopoid UNID copepodite,1.6,
+,,Cyclopoida ,3.3,
+Cyclopoida_UnID Adult,OTHCYCAD,Cyclopoida Adult,3.3,
+Cyclopoida_UnID Juvenile,OTHCYCJUV,Cyclopoida Juvenile,1.6,
+,,Cyclopoida nauplius,0.1,
+Daphnia_UnID Adult,DAPHNIA,Daphnia spp,4,
+Diaphanosoma_UnID Adult,DIAPHAN,Diaphanosoma spp,1,
+Diaptomidae_UnID Adult,DIAPTOM,Diaptomidae adult,4,
+Diaptomidae_UnID Juvenile,DIAPTJUV,Diaptomidae copepodite,2,
+,,Elmidae,,Beetle
+,,Euchlanis spp,0.1,
+,,Eucyclops spp adult,3.3,Use other cyclopoid value
+,,Eurycercus spp,1,Use other cladoceran value
+Eurytemora affinis Adult,EURYTEM,Eurytemora affinis adult,3,
+Eurytemora affinis Juvenile,EURYJUV,Eurytemora affinis copepodid,1.4,
+Eurytemora affinis Larva,EURYNAUP,Eurytemora affinis nauplius,0.1,
+Eurytemora_UnID Larva,,Eurytemora spp nauplii,0.1,
+,,Gammaridea ,,Use LW
+,,Gammarus daiberi,,Use LW
+,,Gastropod ,,
+,,Gastropod veliger,,
+,,Gnorimosphaeroma spp,,Isopod
+Harpacticoida_UnID Undifferentiated,HARPACT,Harpacticoida,1,
+,,Harpaticoid,1,
+,,Hyalella azteca ,,Use LW
+,,Hyalella spp,,Use LW
+,,Hydrachnidae,1.3,Water mite. Weight from diet study data. Carbon weight = wet weight (33.3ug) *.04
+,,Hydroptilidae larvae,,Caddisfly
+,,Hydroptilidae pupae,,Caddisfly
+,,Ilyocryptus spp,1,Use other cladoceran value
+,,Insect larvae,,
+Keratella_UnID Adult,KERATELA,Keratella spp,0.04,
+,,Lecane spp,0.1,
+,,Leptoceridae larvae,,Caddisfly
+,,Leydigia spp,1,Use other cladoceran value
+Limnoithona sinensis Adult,LIMNOSINE,Limnoithona sinensis adult,0.13,
+Limnoithona_UnID Adult,LIMNOSPP,Limnoithona spp adult,0.13,
+Limnoithona_UnID Juvenile,LIMNOJUV,Limnoithona spp copepodite,0.04,
+Limnoithona tetraspina Adult,LIMNOTET,Limnoithona tetraspina adult,0.13,
+,,Macrocyclops sp. adult,3.3,Use other cyclopoid value
+,,Macrocyclops sp. copepodid,1.6,Use other cyclopoid value
+,,Microcyclops spp adult ,3.3,Use other cyclopoid value
+,,Monospilus spp,1,Use other cladoceran value
+,,Munnidae,,Isopod
+,,Naididae,,Oligo worm
+,,Nematoda,,
+,,Nippoleucon hinumensis ,13.2,From diet study data. Carbon weight = wet weight (330.7ug) *.04
+,,Notholca spp,0.1,Use other rotifer value
+,,Ostracod,,
+,,Plationus spp,0.1,Use other rotifer value
+,,Platyias spp,0.1,Use other rotifer value
+Polyarthra_UnID Adult,POLYARTH,Polyarthra spp,0.28,
+,,Polycentropodidae larvae,,Caddisfly
+,,Polychaete larvae,,
+Pseudodiaptomus_UnID Adult,,Pseudodiaptomus adult,2.66,
+Pseudodiaptomus_UnID Juvenile,,Pseudodiaptomus copepodid,1.15,
+Pseudodiaptomus forbesi Adult,PDIAPFOR,Pseudodiaptomus forbesi adult,2.66,
+Pseudodiaptomus forbesi Juvenile,PDIAPJUV,Pseudodiaptomus forbesi copepodid,1.15,
+,,Pseudodiaptomus forbesi nauplius,0.1,
+Pseudodiaptomus marinus Adult,PDIAPMAR,Pseudodiaptomus marinus adult,4.9,
+Pseudodiaptomus_UnID Larva,PDIAPNAUP,Pseudodiaptomus spp nauplii,0.1,
+Rotifera_UnID Adult,OTHROT,Rotifer UNID,0.1,
+,,Simocephalus spp,1,Use other cladoceran value
+Sinocalanus doerrii Adult,SINOCAL,Sinocalanus doerrii adult,3.41,Use other rotifer value
+Sinocalanus doerrii Juvenile,SINOCALJUV,Sinocalanus doerrii copepodid,1.81,
+Sinocalanus doerrii Larva,SINONAUP,Sinocalanus doerrii nauplii,0.07,Use other rotifer value
+Sinocalanus_UnID Juvenile,,Sinocalanus spp copepodid,1.81,
+Sinocalanus_UnID Larva,,Sinocalanus spp nauplii,0.07,
+Synchaeta bicornis Adult,SYNCH,Synchaeta bicornis adult,0.12,
+Synchaeta_UnID Adult,,Synchaeta spp adult,0.12,
+,,Tanaidacea,,
+,,Tardigrada,,
+,,Testudinella spp,0.1,Use other rotifer value
+Tortanus_UnID Adult,TORTANUS,Tortanus adult,15.89,
+Tortanus_UnID Juvenile,TORTJUV,Tortanus copepodid,7.95,
+Tortanus dextrilobatus Adult,,Tortanus dextrilobatus adult,15.89,
+Tortanus dextrilobatus Juvenile,,Tortanus dextrilobatus copepodid,7.95,
+Trichocerca_UnID Adult,TRICHO,Trichocerca spp,0.12,
+,,Trichoptera adult UNID,,Caddisfly
+,,Trichotria spp,0.1,Use other rotifer value
+,,Turbellaria,,Platy worm
+,,UNID Insect adult,,
+Acanthocyclops vernalis Adult,,,3.36,
+Acartia_UnID Adult,ACARTIA,,2.98,
+Acartia_UnID Juvenile,ACARJUV,,1.3,
+Daphniidae_UnID Adult,,,1,
+Oithona davisae Adult,OITHDAV,,0.2,
+Oithona similis Adult,OITHSIM,,0.2,
+Oithona_UnID Adult,OITHSPP,,0.2,
+Oithona_UnID Juvenile,OITHJUV,,0.07,
