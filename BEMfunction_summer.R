@@ -7,6 +7,7 @@ library(arrayhelpers)
 
 ln.a<-c(0.000005,0.00000183) # length-weight parameters
 ln.b<-c(3,3.38)
+n.prey =12
 
 #Juvenile life stage
 stage =4
@@ -78,8 +79,8 @@ T.L <- c(28,28,27,27,27)					# Temperature at CK4 of maximum (deg C)
 CK.1 <- c(0.4,0.4,0.4,0.4,0.4)				# effect at temperature CQ
 CK.4 <- c(0.01,0.01,0.01,0.001,0.001)			# effect at temperature T.L
 T.0 <- c(17,17,20,20,20) # Temperature at 0.98 of maximum (deg C)
-T.M <- c(20,20,23,23,23) # Temperature above which things start delining. I'm bumping this down from 23 to 22
-#T.M <- c(20,20,21.6,21.6,21.6) # smith and nobriga had this at 21.6
+#T.M <- c(20,20,23,23,23) # Temperature above which things start delining.
+T.M <- c(20,20,21.6,21.6,21.6) # smith and nobriga had this at 21.6
 # Metabolism (R) parameters
 a.r <- c(0.0027,0.0027,0.0027,0.0027,0.0027)	# weight multiplier
 b.r <- c(-0.216,-0.216,-0.216,-0.216,-0.216)	# weight exponent
@@ -114,11 +115,14 @@ smelt_bioenergetics_summer = function(PD.mn.array, #array of prey data
   #set up empty dataframes to fill in later
 all.VBL<-all.VBWt<- array(NA,dim=c((n.days), n.yrs,nrow(beta_hat)))
 all.L<- data.frame(NA)
+all.Energy = data.frame(NA)
 all.Wt<- data.frame(NA)
 all.delta.BEM <- array(NA,dim=c((n.days),n.strata, n.yrs,nrow(beta_hat)))
 all.delta.VB <- array(NA,dim=c((n.days), n.yrs,nrow(beta_hat)))
 mn.pred.L<-mn.pred.Wt<- array(NA,dim=c((n.days+1), (n.yrs-1),nrow(beta_hat)))
 energyout = data.frame(Energy = NA, Stratum = NA, Scenario = NA, Day = NA)
+Foods = data.frame(NA)
+all.Limno = data.frame(NA)
 
 
 for (s in 1:nrow(beta_hat)) {
@@ -143,7 +147,7 @@ for (s in 1:nrow(beta_hat)) {
   
   
   # start model
-  for (h in 1:n.yrs) { # year
+  for (h in 1:n.yrs) { # year (actioally scenarios)
     L[1,,h] <- start.L[h] # June start
     
     #I think all the "VB" parameters are for the Von-Bertallafy growth curve that we're not actually using.
@@ -170,6 +174,7 @@ for (s in 1:nrow(beta_hat)) {
       
       Cmax1[1,i,h] <- a.c[4]*(Wt[1,i,h]^b.c[4])
       realized.Cmax1[1,i,h] <- Cmax1[1,i,h]*TMP.fx[1,i,h]*NTU.fx[1,i,h]*LT.fx[1]
+      
       C.prey <- (realized.Cmax1[1,i,h]*Food[1,i,h,]) /(1+sum(Food[1,i,h,])) # C.prey : total consumption of each prey type. function of max consumption, food 
       energy.prey <- e.d*C.prey
       Limno[1,i,h] <- energy.prey[1]/sum(energy.prey) # fraction energy from Limno prey
@@ -246,6 +251,20 @@ for (s in 1:nrow(beta_hat)) {
   #We don't use these
   all.delta.BEM[,,,s] <- delta.BEM
   all.delta.VB[,,s] <- delta.VB
+
+  LimnoA = array2df(Limno, levels = list(NA,ex.strata,c(1:n.yrs)), label.x = "Limno", na.rm =T)%>%
+    mutate(s = s)
+  all.Limno <- bind_rows(all.Limno, LimnoA) 
+  
+    
+  FoodsumA = array2df(Foodsum, levels = list(NA,ex.strata,c(1:n.yrs)), label.x = "Food", na.rm =T)%>%
+    mutate(s = s)
+  Foods <- bind_rows(Foods, FoodsumA) 
+  
+  
+  Energy = array2df(energy, levels = list(NA,ex.strata,c(1:n.yrs)), label.x = "energy", na.rm =T)%>%
+    mutate(s = s)
+  all.Energy <- bind_rows(all.Energy, Energy) 
   
   #data frame of length outputs
   AllL = array2df(L, levels = list(NA,ex.strata,c(1:n.yrs)), label.x = "Length", na.rm =T) %>%
@@ -254,14 +273,18 @@ for (s in 1:nrow(beta_hat)) {
   all.VBL[,,s] <- VB.L
   
   #data frame of weigth outputs
-  all.Wt <- bind_rows(all.Wt, mutate(array2df(Wt,levels = list(NA,ex.strata,c(1:n.yrs)),  label.x = "Weight", na.rm =T), s = s))
+  all.Wt <- bind_rows(all.Wt, mutate(array2df(Wt,levels = list(NA,ex.strata,c(1:n.yrs)),  
+                                              label.x = "Weight", na.rm =T), s = s))
   
   all.VBWt[,,s] <- VB.Wt
   
 }
 
 #combine length and weigth
-lengthweight = left_join(all.Wt, all.L)
+lengthweight = left_join(all.Wt, all.L) %>%
+  left_join(all.Energy) %>%
+  left_join(Foods) %>%
+  left_join(all.Limno)
 
 Outputs = select(lengthweight, -NA.) %>%
   filter(!is.na(d1)) %>%

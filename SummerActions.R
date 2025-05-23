@@ -48,15 +48,15 @@ ggplot(tempslong, aes(x = day_of_year, y = Temperature, color = Region)) + geom_
 #so I set up a dtataframe that repeats the temperature data for each scenario.
 #There's probably a better way to do this, but that would invovle rewriting a buch of code.
 
-tempsall = bind_rows(mutate(tempRegional, Scenario = "Noaction"),
-                     mutate(tempRegional, Scenario = "fallx2"),
-                     mutate(tempRegional, Scenario = "10800-3-m"),
-                            mutate(tempRegional, Scenario = "10800-60d"),
+tempsall = bind_rows(mutate(tempRegional, Scenario = "10800-3-m"),
+                     mutate(tempRegional, Scenario = "10800-60d"),
                      mutate(tempRegional, Scenario = "10800-b"),
-                     mutate(tempRegional, Scenario = "15000-3-m"),
+                            mutate(tempRegional, Scenario = "15000-3-m"),
+                     mutate(tempRegional, Scenario = "15000-60d"),
                      mutate(tempRegional, Scenario = "15000-b"),
                      mutate(tempRegional, Scenario = "21000"),
-                     mutate(tempRegional, Scenario = "15000-60d"))%>%
+                     mutate(tempRegional, Scenario = "fallx2"),
+                     mutate(tempRegional, Scenario = "Noaction"))%>%
   rename(DOY = day_of_year) %>%
   filter(DOY %in% c(153:305)) # just June-October
 
@@ -89,15 +89,15 @@ turblong = pivot_longer(turbRegional, cols = c(`NE Suisun`, `SE Suisun`,`NW Suis
 ggplot(turblong, aes(x = day_of_year, y = Turbidity, color = Region)) + geom_line()
 
 #create a data frame that repeats the data for each scenario.
-turball = bind_rows(mutate(turbRegional, Scenario = "Noaction"),
-                     mutate(turbRegional, Scenario = "fallx2"),
-                     mutate(turbRegional, Scenario = "10800-3-m"),
+turball = bind_rows(mutate(turbRegional, Scenario = "10800-3-m"),
                      mutate(turbRegional, Scenario = "10800-60d"),
                      mutate(turbRegional, Scenario = "10800-b"),
                      mutate(turbRegional, Scenario = "15000-3-m"),
                      mutate(turbRegional, Scenario = "15000-b"),
                      mutate(turbRegional, Scenario = "15000-60d"),
-                     mutate(turbRegional, Scenario = "21000"))%>%
+                     mutate(turbRegional, Scenario = "21000"),
+                     mutate(turbRegional, Scenario = "fallx2"),
+                     mutate(turbRegional, Scenario = "Noaction"),)%>%
   rename(DOY = day_of_year) %>%
   filter(DOY %in% c(153:305))
 
@@ -116,7 +116,7 @@ Turbx2R = apply(TurbxR, c(2,3), as.numeric)
 #now the zooplankton.
 #I use the zooplankton that I adjusted with the salinity GAM resutls.  
 
-load("C:/Users/rhartman/Documents/DS BEM_HSI/outputs/SalinityStuff.RData")
+load("outputs/SalinityStuff.RData")
 
 #pull out just the median values from the results
 #Ideally I"d like to include the uncertainties inthe zooplankton carried through to the 
@@ -138,7 +138,8 @@ zoopsmAveSummer = zoopsmedian%>%
               names_from = IBMR, values_from = Biomass) %>%
   select(Region,  DOY,  Scenario, #put it in the right order for the model
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
-         daphnia, othcyc, other, eurytem, pdiapfor) 
+         daphnia, othcyc, other, eurytem, pdiapfor) %>%
+  arrange(Scenario)
 
 #create an array that is days x taxa x region x scenario
 test = zoopsmAveSummer %>%
@@ -146,7 +147,7 @@ test = zoopsmAveSummer %>%
 
 zoop = array(unlist(test),dim=c(153,15,6, 9), 
              dimnames = list(c(152:304), names(zoopsmAveSummer), unique(zoopsmAveSummer$Region),
-                             unique(zoopsmAveSummer$Scenario)))
+                             sort(unique(zoopsmAveSummer$Scenario))))
 
 
 
@@ -172,7 +173,8 @@ zoopsmAveSummer2024 = zoopsmedian2024%>%
               names_from = IBMR, values_from = Biomass) %>%
   select(Region,  DOY,  Scenario,
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
-         daphnia, othcyc, other, eurytem, pdiapfor) 
+         daphnia, othcyc, other, eurytem, pdiapfor) %>%
+  arrange(Scenario)
 
 
 
@@ -181,7 +183,7 @@ test = zoopsmAveSummer2024 %>%
 
 zoop2024 = array(unlist(test),dim=c(153,15,6, 9), 
              dimnames = list(c(152:304), names(zoopsmAveSummer2024), unique(zoopsmAveSummer2024$Region),
-                             unique(zoopsmAveSummer2024$Scenario)))
+                             sort(unique(zoopsmAveSummer2024$Scenario))))
 
 
 
@@ -227,7 +229,20 @@ sfharun2024 = smelt_bioenergetics_summer(PD.mn.array = zoopx22024, obs.temp.dat 
 sfhasummary = bind_rows(mutate(sfharun, Year = "2016"),
                         mutate(sfharun2024, Year = "2024"))%>%
   group_by(Stratum, Scenario, Day, Year) %>%
-  summarize(sdLength = sd(Length), sdWeight = sd(Weight),Length = mean(Length), Weight = mean(Weight))
+  summarize(sdLength = sd(Length), sdWeight = sd(Weight),Length = mean(Length), Weight = mean(Weight)) %>%
+  group_by(Stratum, Scenario, Year) %>%
+  mutate(Growth = (Weight -dplyr::lag(Weight))/Weight) %>%
+  ungroup()
+
+
+ggplot(sfhasummary, aes(x = Day, y = Growth, color = Scenario)) + geom_line()+
+  facet_wrap(Year~Stratum)
+
+ggplot(filter(sfhasummary, Stratum == "SE Suisun", Year == "2016"), aes(x = Day, y = Growth, color = Scenario)) + 
+  geom_line()+
+  coord_cartesian(ylim = c(0.008, 0.015), xlim = c(75, 155))
+#  facet_wrap(Year~Stratum)
+
 
 ggplot(sfhasummary, aes(x = Day, y = Length, color = Scenario)) + geom_line()+
   facet_wrap(Year~Stratum)
@@ -268,6 +283,30 @@ ggplot(totagrowth, aes(x = Scenario, y = Weight, group = Year, fill = Scenario))
 save(sfharun, totagrowth,sfharun2024, sfhasummary, file = "outputs/sfharunbothyears.RData")
 load("outputs/sfharunbothyears.RData")
 
+###########################################################
+#look at growth by month
+totagrowth_month = sfhasummary %>%
+  mutate(Month = case_match(Day, c(0:30) ~ 6,
+                            c(31:62) ~ 7,
+                            c(63:94) ~ 8,
+                            c(95:125) ~ 9,
+                            c(126:157) ~ 10)) %>%
+  group_by(Stratum, Scenario, Year, Month) %>%
+  summarize(Length = max(Length, na.rm =T), Weight = max(Weight, na.rm =T), 
+            sdLength = max(sdLength), sdWeight = max(sdWeight))%>%
+  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m", "10800-60d", "10800-b",
+                                                "15000-3-m", "15000-60d", "15000-b", "21000")),
+         Laggrowth = dplyr::lag(Weight), NewGrowth = Weight-Laggrowth,
+         NewGrowth = case_when(Month ==6 ~ Weight - 0.07,
+                               TRUE ~ NewGrowth))
+  
+
+ggplot(totagrowth_month, aes(x = Scenario, y = NewGrowth, color = Year)) +
+  facet_grid(Month ~ Stratum, scales = "free_y")+
+  geom_point(position = "dodge")+ ylab("Monthly weigth increase")+
+  theme(axis.text.x = element_text(angle = 90))
+
+###############################################################################################
 #OK, now I need to add the salinities and calculate the growth rate in the 
 #areas where salinity is <6
 
@@ -285,14 +324,16 @@ growth_6 = sfhasummary %>%
   group_by(Year, Scenario) %>%
   mutate(lagweight = dplyr::lag(Weight), #lag of weigth to make it easeir to calculate growth
          DOY = Day +153, #convert "day" to "Day of year"
-         Growth = (Weight-lagweight)/Weight) %>% #grwoth rate
+         Growth = (Weight-lagweight)/Weight,
+         Growth2 = (Weight-lagweight)) %>% #grwoth rate g/g/day
   ungroup() %>%
   left_join(salsummary) %>%
   mutate(Good = case_when(Salinity <= 6 ~ TRUE,
                           TRUE ~ FALSE)) %>% #new variable to say whether salinity was <6
   filter(Good, Day !=0) %>% 
   group_by(Scenario, Year, Day) %>% 
-  summarize(growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
+  summarize(growth2 = mean(Growth2, na.rm =T),
+            growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
   group_by(Scenario, Year) %>%
   mutate(Weight = case_when(Day ==1 ~0.07329784)) %>% #starting weight was 0.07 (used in next step)
   ungroup()
@@ -306,20 +347,42 @@ x$Weight[i] = x$Weight[i-1]*(1+x$growth[i])
   return(x)
   }
 
+growing2 = function(x) {
+  x$Weight[1] = 0.07329784
+  for(i in 2:max(x$Day)){
+    x$Weight[i] = x$Weight[i-1]+x$growth2[i]
+  }
+  return(x)
+}
+
+
 #now apply the function to the growth rate data
 test = growth_6 %>%
   group_by(Scenario, Year) %>%
   do(Weight = growing(.))
 
+testx = growth_6 %>%
+  group_by(Scenario, Year) %>%
+  do(Weight = growing2(.))
+
 #that didn't come out like i intended, this hould fix it.
 test2 = bind_rows(test$Weight)
-
+test2x= bind_rows(testx$Weight) %>%
+  rename(Weight2 = Weight) %>%
+  left_join(test2)
 #plot the results
-ggplot(test2, aes(x = Day, y = growth, color = Scenario))+
+ggplot(test2x, aes(x = Day, y = growth, color = Scenario))+
   geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/g/day")
 #OK, well that's confusing. 
 
-ggplot(test2, aes(x = Day, y = Weight, color = Scenario))+
+ggplot(test2x, aes(x = Day, y = growth2, color = Scenario))+
+  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")+
+  coord_cartesian(xlim = c(120, 155), ylim = c(0.018, 0.021))
+
+ggplot(test2x, aes(x = Day, y = Weight, color = Scenario))+
+  geom_line() + facet_wrap(~Year)+ylab("Weight (g)")
+
+ggplot(test2x, aes(x = Day, y = Weight2, color = Scenario))+
   geom_line() + facet_wrap(~Year)+ylab("Weight (g)")
 
 
@@ -327,8 +390,9 @@ ggplot(test2, aes(x = Day, y = Weight, color = Scenario))+
 #salinities of <6
 
 #this is what does into the consequence table.
-meangrowth = group_by(test2, Year, Scenario) %>%
-  summarise(Growth = mean(growth), total = max(Weight, na.rm =T)) %>%
+meangrowth = group_by(test2x, Year, Scenario) %>%
+  summarise(Growth = mean(growth), Growth2 = mean(growth2),total = max(Weight, na.rm =T),
+            total2 = max(Weight2, na.rm =T))%>%
   mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m",
                                                 "10800-60d", "10800-b", "15000-3-m", "15000-60d",
                                                 "15000-b", "21000")))
@@ -340,6 +404,13 @@ ggplot(meangrowth, aes(x = Scenario, y = total, fill = Scenario, group = Year)) 
   scale_alpha_manual(values = c(0.7, 1))+
   coord_cartesian(ylim = c(1.5,2.1))+
   ylab("total summer growth (g)")
+
+ggplot(meangrowth, aes(x= Scenario, y = total2, fill = Scenario, group = Year)) + 
+  geom_col(aes(alpha = Year), position = "dodge")+
+  scale_alpha_manual(values = c(0.7, 1))+
+  coord_cartesian(ylim = c(1.5,2.3))+
+  ylab("total summer growth (g)")
+
 
 #####################################################################
 #why is X2 lower than no action?
@@ -361,6 +432,75 @@ ggplot(filter(growth_6a, Scenario %in% c("Noaction", "fallx2")),
   scale_alpha_manual(values = c(0.5, 1))+
   facet_wrap(Scenario~Year, nrow =2)
  
+
+test = growth_6a %>%
+  filter(!Stratum  %in% c("SE Suisun", "NE Suisun", "NW Suisun")) %>%
+  group_by(Year, Scenario) %>%
+  mutate(lagweight = dplyr::lag(Weight), DOY = Day +153,
+         Growth = (Weight-lagweight)) %>%
+  ungroup() %>%
+  left_join(salsummary) %>%
+  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
+                          TRUE ~ FALSE)) %>%
+  filter(DOY>153) %>% 
+  group_by(Scenario, Year, Day) %>% 
+  summarize(growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
+  group_by(Scenario, Year) %>%
+  mutate(Weight = case_when(Day ==1 ~0.07329784)) %>% #starting weight was 0.07 (used in next step)
+  ungroup()
+
+
+
+#now apply the function to the growth rate data
+test2 = test %>%
+  group_by(Scenario, Year) %>%
+  do(Weight = growing(.))
+
+#that didn't come out like i intended, this hould fix it.
+test2a = bind_rows(test2$Weight)
+
+#plot the results
+ggplot(filter(test2a,Day >1), aes(x = Day, y = growth, color = Scenario))+
+  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/g/day")
+#OK, well that's confusing. 
+
+ggplot(filter(test2a,Day >1), aes(x = Day, y = Weight, color = Scenario))+
+  geom_line() + facet_wrap(~Year)+ylab("Weight (g)")
+
+
+#calculate mean growth rate and maximum weigth if fish are restricted to
+#salinities of <6
+
+#this is what does into the consequence table.
+meangrowth2 = group_by(test2a, Year, Scenario) %>%
+  summarise(Growth = mean(growth), total = max(Weight, na.rm =T)) %>%
+  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m",
+                                                "10800-60d", "10800-b", "15000-3-m", "15000-60d",
+                                                "15000-b", "21000")))
+
+ggplot(meangrowth2, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
+  geom_col(aes(alpha = Year), position = "dodge")+
+  scale_alpha_manual(values = c(0.7, 1))+
+  coord_cartesian(ylim = c(.5,.7))+
+  ylab("total summer growth (g)")
+
+#OK! Fall X2 is higher in this situation. So i'd probably a matter of Suisun declining in suitablity
+
+##################################################################
+
+growth_6_A = sfhasummary %>%
+  mutate(DOY = Day+154) %>%
+  left_join(salsummary) %>%
+  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
+                          TRUE ~ FALSE)) %>%
+  filter(DOY>154, Good) %>%
+  group_by(Year, Scenario, DOY)  %>%
+  summarize(Weight = mean(Weight))
+
+
+ggplot(growth_6_A, aes(x = DOY, y = Weight, color = Scenario)) + geom_line()+
+  facet_wrap(~Year)
+
 
 #########################################################################
 #what's going on with Suisun marsh?
