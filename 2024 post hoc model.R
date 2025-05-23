@@ -168,7 +168,8 @@ save(run2024, file = "outputs/sfharun_2024posthoc.RData")
 summary_2024 = run2024%>%
   mutate(Year = "2024") %>%
   group_by(Stratum, Scenario, Day, Year) %>%
-  summarize(sdLength = sd(Length), sdWeight = sd(Weight),Length = mean(Length), Weight = mean(Weight), energy = mean(energy)) %>%
+  summarize(sdLength = sd(Length), sdWeight = sd(Weight),Length = mean(Length), Weight = mean(Weight), 
+            energy = mean(energy), food = mean(Food), Limno = mean(Limno)) %>%
   group_by(Stratum, Scenario, Year) %>%
   mutate(Growth = (Weight -dplyr::lag(Weight))/Weight) %>%
   ungroup()
@@ -177,6 +178,10 @@ summary_2024 = run2024%>%
 ggplot(summary_2024, aes(x = Day, y = Growth, color = Scenario)) + geom_line()+
   facet_wrap(Year~Stratum)
 
+#OOOOHHHHH, they're eating more limnoithona...
+
+ggplot(summary_2024, aes(x = Day, y = Limno, color = Scenario)) + geom_line()+
+  facet_wrap(Year~Stratum)
 
 ggplot(summary_2024, aes(x = Day, y = energy, color = Scenario)) + geom_line()+
   facet_wrap(Year~Stratum)

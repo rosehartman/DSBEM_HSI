@@ -57,7 +57,8 @@ We used all the available zooplankton data in the 'zooper' integrated dataset fr
 Available here: https://github.com/InteragencyEcologicalProgram/zooper
 
 ```{r}
-zoop_data<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT"), Time_consistency = FALSE)
+#why not add DOP?
+zoop_data<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT", "DOP"), Time_consistency = FALSE)
 ```
 
 
@@ -140,7 +141,9 @@ All the remaining brackish regions have sufficient sample size with the exceptio
 
 Create a new column with IBMR edited regions to accomodate combination of NE and SE Suisun regions.
 ```{r}
-zoop_data_mass$Subregion_edit<-ifelse(zoop_data_mass$SUBREGION%in%c("NE Suisun", "SE Suisun"), "East Suisun", zoop_data_mass$SUBREGION)
+zoop_data_mass<-mutate(zoop_data_mass, Subregion_edit = case_match(SUBREGION, c("NE Suisun", "SE Suisun", "NW Suisun", 
+                                                                  "SW Suisun")~"Suisun Bay", 
+                                                                  c("Confluence", "Lower Sacramento River") ~ "Lower Sacramento",.default = SUBREGION))
 
 save(zoop_data_mass, file = "data/zoop_data_mass.RData")
 
@@ -265,7 +268,7 @@ sal_model<-function(group,region,new_data=newdata){
   par(mfrow=c(2,2))
   
   if(length(unique(data$Station_fac))>1){
-    model<-gam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cs")) + 
+    model<-bam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cs")) + 
                  s(Year_fac, bs="re") + s(Station_fac, bs="re"),
                data=data, 
                method="REML")
@@ -274,7 +277,7 @@ sal_model<-function(group,region,new_data=newdata){
     
   }else{
     
-    model<-gam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cs")) + 
+    model<-bam(BPUE_log1p ~ te(SalSurf_s, doy_s, k=c(5,5), bs=c("cs", "cs")) + 
                  s(Year_fac, bs="re"),
                data=data, 
                method="REML")
@@ -891,7 +894,8 @@ limnoplot = filter(sal_conversions, IBMR == "limno", doy %in% c(153, 160, 170, 1
 
   
 ggplot(limnoplot, aes(x = SalSurf, y = median)) + geom_line()+
-  facet_grid(doy~Region)
+  facet_grid(doy~Region)+
+  geom_ribbon(aes(ymin = l95, ymax = u95))+scale_y_log10()
 ```
 
 ```{r}
