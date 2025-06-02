@@ -17,7 +17,7 @@ library(chillR)
 source("BEMfunction_summer.R")
 ### 1. Read model parameters and data6
 n.strata <- 6 #"Confluence"   "NE Suisun"    "NW Suisun"    "SE Suisun"    "Suisun Marsh" "SW Suisun" 
-ex.strata = sort(c( "NE Suisun", "SE Suisun", "NW Suisun",  "Confluence", "SW Suisun",  "Suisun Marsh"))
+ex.strata = sort(c( "NE Suisun", "SE Suisun", "NW Suisun",  "Confluence", "SW Suisun",  "Suisun Marsh", "Lower Sacramento River"))
 n.prey <- 12 #
 n.days<-153 # summer and fall
 n.scenarios = 4
@@ -33,10 +33,10 @@ n.yrs<-4
 #It is quite annoying, and it is quite easy to mess up.
 
 tempRegional = read_csv("data/temperature_quantile_50_fitsubregion.csv") %>%
-  select(day_of_year, `Confluence`,`NE Suisun`, `NW Suisun`,`SE Suisun`,    `Suisun Marsh`,`SW Suisun`)
+  select(day_of_year, `Confluence`, `Lower Sacramento River`,`NE Suisun`, `NW Suisun`,`SE Suisun`,    `Suisun Marsh`,`SW Suisun`)
 
 #Quickly put it in a different format to make a quick pot
-tempslong = pivot_longer(tempRegional, cols = c(`NE Suisun`, `SE Suisun`,`NW Suisun`, `Confluence`, `SW Suisun`,  `Suisun Marsh`),
+tempslong = pivot_longer(tempRegional, cols = c(`NE Suisun`, `SE Suisun`,`NW Suisun`, `Confluence`, `SW Suisun`,  `Suisun Marsh`, `Lower Sacramento River`),
                          names_to = "Region", values_to = "Temperature")
 
 #check that it makes sense (it does)
@@ -57,12 +57,12 @@ tempsall24 = bind_rows(mutate(tempRegional, Scenario = "Gates+X2"),
 test = tempsall24  %>%
   split(list(tempsall24$Scenario))
 
-TempsR24 = array(unlist(test),dim=c(153,8, 4), 
+TempsR24 = array(unlist(test),dim=c(153,9, 4), 
                dimnames = list(c(153:305), names(tempsall24),
                                unique(tempsall24$Scenario)))
 
 #OK! Now i just need to get rid of the id columns
-TempxR24 = TempsR24[c(1:153), c(2:7), c(1:4)]
+TempxR24 = TempsR24[c(1:153), c(2:8), c(1:4)]
 
 #and make it numeric
 Tempx2R24 = apply(TempxR24, c(2,3), as.numeric)
@@ -72,11 +72,11 @@ Tempx2R24 = apply(TempxR24, c(2,3), as.numeric)
 
 #They gave me log-transformed turbidity, so also have to back-tranform it.
 turbRegional = read_csv("data/ln_turbidity_quantile_50_fitsubregion.csv") %>%
-  select(day_of_year, `Confluence`,`NE Suisun`, `NW Suisun`,`SE Suisun`,  `Suisun Marsh`, `SW Suisun`) %>%
-  mutate(across(c(`Confluence`,`NE Suisun`, `NW Suisun`,`SE Suisun`,  `SW Suisun`,  `Suisun Marsh`), exp))
+  select(day_of_year, `Confluence`, `Lower Sacramento River`,`NE Suisun`, `NW Suisun`,`SE Suisun`,  `Suisun Marsh`, `SW Suisun`) %>%
+  mutate(across(c(`Confluence`, `Lower Sacramento River`,`NE Suisun`, `NW Suisun`,`SE Suisun`,  `SW Suisun`,  `Suisun Marsh`), exp))
 
 #reformat so I can graph it
-turblong = pivot_longer(turbRegional, cols = c(`NE Suisun`, `SE Suisun`,`NW Suisun`, `Confluence`, `SW Suisun`,  `Suisun Marsh`),
+turblong = pivot_longer(turbRegional, cols = c(`NE Suisun`, `Lower Sacramento River`, `SE Suisun`,`NW Suisun`, `Confluence`, `SW Suisun`,  `Suisun Marsh`),
                         names_to = "Region", values_to = "Turbidity")
 #check that it makes sense
 ggplot(turblong, aes(x = day_of_year, y = Turbidity, color = Region)) + geom_line()
@@ -92,12 +92,12 @@ turball24 = bind_rows(mutate(turbRegional, Scenario = "Gates+X2"),
 test = turball24 %>%
   split(list(turball24$Scenario))
 
-TurbR24 = array(unlist(test),dim=c(153,8, 4), 
+TurbR24 = array(unlist(test),dim=c(153,9, 4), 
               dimnames = list(c(153:305), names(turball24),
                               unique(turball24$Scenario)))
 
 #OK! Now i just need to get rid of the id columns
-TurbxR24 = TurbR24[c(1:153), c(2:7), c(1:4)]
+TurbxR24 = TurbR24[c(1:153), c(2:8), c(1:4)]
 Turbx2R24 = apply(TurbxR24, c(2,3), as.numeric)
 
 #################################################################
@@ -113,7 +113,7 @@ step424 = read_csv("Outputs/zoop sal adjustments_2024gates.csv")
 
 zoopsmedian24 = pivot_longer(step424,  cols = c(`Gates+X2_median`:last_col()),
                            names_to = "Scenario", values_to = "Biomass") %>%
-  filter(!str_detect(Scenario, "95"), region %in% c("Confluence", "NW Suisun", "SW Suisun",
+  filter(!str_detect(Scenario, "95"), region %in% c("Confluence", "Lower Sacramento River", "NW Suisun", "SW Suisun",
                                                     "NE Suisun", "East Suisun", "Suisun Marsh",
                                                     "SE Suisun")) 
 
@@ -133,14 +133,14 @@ zoopsmAveSummer24 = zoopsmedian24%>%
 test24 = zoopsmAveSummer24 %>%
   split(list(zoopsmAveSummer24$region, zoopsmAveSummer24$Scenario))
 
-zoop24 = array(unlist(test24),dim=c(153,15,6, 4), 
+zoop24 = array(unlist(test24),dim=c(153,15,7, 4), 
              dimnames = list(c(152:304), names(zoopsmAveSummer24), sort(unique(zoopsmAveSummer24$region)),
                              sort(unique(zoopsmAveSummer24$Scenario))))
 
 
 
 #OK! Now i just need to get rid of the id columns
-zoopx24 = zoop24[c(1:153), c(4:15), c(1:6), c(1:4)]
+zoopx24 = zoop24[c(1:153), c(4:15), c(1:7), c(1:4)]
 zoopx224 = replace_na(apply(zoopx24, c(2,3,4), as.numeric),0)
 
 
@@ -317,9 +317,8 @@ ggplot(test2x, aes(x = Day, y = growth, color = Scenario))+
 
 ggplot(test2x, aes(x = Day, y = growth2, color = Scenario))+
   geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")+
-  coord_cartesian(xlim = c(120, 155), ylim = c(0.015, 0.021))
+  coord_cartesian(xlim = c(120, 155), ylim = c(0.0105, 0.021))
 
-test2x = mutate(test2x, DOY )
 
 ggplot(test2x, aes(x = Day, y = Weight, color = Scenario))+
   geom_line() + facet_wrap(~Year)+ylab("Weight (g)")+
@@ -340,15 +339,68 @@ write.csv(meangrowth24, "outputs/meangrowth_2024actions.csv", row.names = F)
 ggplot(meangrowth24, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
   geom_col()+
   scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(1.5,2.1))+
+  coord_cartesian(ylim = c(1.2,1.6))+
   ylab("total summer growth (g)")
 
-ggplot(meangrowth24, aes(x= Scenario, y = total2, fill = Scenario, group = Year)) + 
+ggplot(meangrowth24, aes(x= Scenario, y = total2, fill = Scenario)) + 
+  geom_col( )+
+  coord_cartesian(ylim = c(1.5,1.8))+
+  ylab("total summer growth (g)")
+
+
+#################################error bars#################
+
+growthwerrror = run2024 %>%
+  group_by(s, Stratum, Scenario) %>%
+  arrange(Day) %>%
+  mutate(lagweight = dplyr::lag(Weight),
+         DOY = Day +153, #convert "day" to "Day of year"
+         Growth = (Weight-lagweight)/Weight,
+         Growth2 = (Weight-lagweight)) %>% #grwoth rate g/g/day
+  ungroup() %>%
+  left_join(salsummary) %>%
+  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
+                          TRUE ~ FALSE)) %>% #new variable to say whether salinity was <6
+  filter(Good, Day !=0) %>% 
+  group_by(Scenario, Day, s) %>% 
+  summarize(growth2 = mean(Growth2, na.rm =T),
+            growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
+  group_by(Scenario, s) %>%
+  mutate(Weight = case_when(Day ==1 ~0.07329784)) %>% #starting weight was 0.07 (used in next step)
+  ungroup()
+
+
+#now apply the function to the growth rate data
+tester = growthwerrror %>%
+  group_by(Scenario,  s) %>%
+  do(Weight = growing(.))
+
+testxer = growthwerrror %>%
+  group_by(Scenario,  s) %>%
+  do(Weight = growing2(.))
+
+#that didn't come out like i intended, this hould fix it.
+test2er = bind_rows(tester$Weight)
+test2xer= bind_rows(testxer$Weight) %>%
+  rename(Weight2 = Weight) %>%
+  left_join(test2er)
+#plot the results
+ggplot(test2xer, aes(x = Day, y = growth, color = Scenario))+
+  geom_point() + ylab("Growth Rate g/g/day")
+
+GrowthError = group_by(test2xer, Scenario, Day) %>%
+  summarize(L95 = quantile(Weight2, 0.025), U95 = quantile(Weight2, 0.975),
+            growth = mean(growth), growth2 = mean(growth2), Weight = mean(Weight), Weight2 = mean(Weight2))
+
+ggplot(GrowthError, aes(x = Day, y = Weight2, color = Scenario, fill = Scenario))+
+  geom_ribbon(aes(ymin = L95, ymax = U95), alpha = 0.2)+
+  geom_line(linewidth =1) + ylab("Weight(g)")
+
+Growthtotal = filter(GrowthError, Day == 153)
+
+ggplot(Growthtotal, aes(x = Scenario, y = Weight2, fill = Scenario))+
   geom_col()+
-  scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(1.5,2.3))+
-  ylab("total summer growth (g)")
-
+  geom_errorbar(aes(ymin = L95, ymax = U95))
 
 ##########################################################
 #map of regions for ITP ammendment

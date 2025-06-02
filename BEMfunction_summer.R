@@ -38,7 +38,7 @@ V[12,] <- c(0,0,1,1,1) #pdiapfor ***
 
 # K.ik is half-saturation constant for fish i feeding on each prey type k - calculated outside model to obtain realistic diet and consumption rates
 K <- matrix(NA,n.prey,5)					
-K[1,] <- c(NA,2.5,120,1.5,100) #limno				# From 2nd Rose model_apr2020
+K[1,] <- c(NA,2.5,120,1.5,100) #limno				# From 2nd Rose model_apr2020 - origional model had this as 1,1,4,2
 K[2,] <- c(NA,0.375,0.24,7.5,3) #othcaljuv
 K[3,] <- c(NA,0.375,0.24,1.5,2) #pdiapjuv
 K[4,] <- c(NA,250,6,0.75,0.6) #othcalad
