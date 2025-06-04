@@ -120,10 +120,11 @@ zoopsmedian24 = pivot_longer(step424,  cols = c(`Gates+X2_median`:last_col()),
 zoopsmAveSummer24 = zoopsmedian24%>%
   filter(DOY %in% c(152:304))%>%
   group_by(region, Scenario, IBMR) %>%
-  mutate(Biomass = na.locf(Biomass)) %>% #if we are missing data, carry last observation forward
+  mutate(Biomass = na.locf(Biomass),
+         Biomass_mg = Biomass/1000) %>% #if we are missing data, carry last observation forward and convert to mg
   ungroup() %>%
   pivot_wider(id_cols = c(region, DOY,  Scenario),
-              names_from = IBMR, values_from = Biomass) %>%
+              names_from = IBMR, values_from = Biomass_mg) %>%
   select(region,  DOY,  Scenario, #put it in the right order for the model
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
          daphnia, othcyc, other, eurytem, pdiapfor) %>%
@@ -188,7 +189,7 @@ ggplot(summary_2024, aes(x = Day, y = energy, color = Scenario)) + geom_line()+
 
 ggplot(filter(summary_2024, Stratum == "SE Suisun"), aes(x = Day, y = Growth, color = Scenario)) + 
   geom_line()+
-  coord_cartesian(ylim = c(0.008, 0.015), xlim = c(75, 155))
+  coord_cartesian(ylim = c(0, 0.015), xlim = c(75, 155))
 #  facet_wrap(Year~Stratum)
 
 
@@ -210,7 +211,7 @@ totagrowth24 = summary_2024 %>%
 ggplot(totagrowth24, aes(x = Scenario, y = Length, group = Year, fill = Scenario)) + 
   geom_col( color = "grey")+
   scale_alpha_manual(values = c(0.6, 1))+
-  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(52, 70))+
+  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(20, 60))+
   geom_errorbar(aes(ymin = Length - sdLength, ymax = Length+sdLength), position = "dodge")+
   theme(axis.text.x = element_text(angle = 90))
 
@@ -218,7 +219,7 @@ ggplot(totagrowth24, aes(x = Scenario, y = Length, group = Year, fill = Scenario
 ggplot(totagrowth24, aes(x = Scenario, y = Weight, group = Year, fill = Scenario)) + 
   geom_col(color = "grey")+
   scale_alpha_manual(values = c(0.6, 1))+
-  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(1, 3))+
+  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(0, 1.5))+
   geom_errorbar(aes(ymin = Weight - sdWeight, ymax = Weight+sdWeight), position = "dodge")+
   theme(axis.text.x = element_text(angle = 90))
 
@@ -253,6 +254,28 @@ ggplot(totagrowth_month24, aes(x = Scenario, y = Weight, color = Year)) +
 ###############################################################################################
 #OK, now I need to add the salinities and calculate the growth rate in the 
 #areas where salinity is <6
+
+hist = read_csv("data/ave_salinity_ts_hist_salinity.csv") %>%
+  mutate(Scenario = "Gates+X2")
+
+firstbit = filter(hist, time < ymd_hms("2024-06-28 16:30:00 UTC"))
+
+NoAction = read_csv("data/ave_salinity_ts_no_op_no_x2_salinity.csv")%>%
+  bind_rows(firstbit) %>%
+  mutate(Scenario = "NoAction")
+
+X2only = read_csv("data/ave_salinity_ts_no_op_x2_salinity.csv")%>%
+  bind_rows(firstbit) %>%
+  mutate(Scenario = "X2Only")
+
+Gatesonly = read_csv("data/ave_salinity_ts_op_no_x2_salinity.csv")%>%
+  bind_rows(firstbit) %>%
+  mutate(Scenario = "GatesOnly")
+
+
+dat2020 = bind_rows(hist, NoAction, X2only, Gatesonly)
+
+
 
 #combine both salinity files
 salsummary =  dat2020%>%
@@ -316,8 +339,8 @@ ggplot(test2x, aes(x = Day, y = growth, color = Scenario))+
 #OK, well that's confusing. 
 
 ggplot(test2x, aes(x = Day, y = growth2, color = Scenario))+
-  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")+
-  coord_cartesian(xlim = c(120, 155), ylim = c(0.0105, 0.021))
+  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")#+
+  #coord_cartesian(xlim = c(120, 155), ylim = c(0.0105, 0.021))
 
 
 ggplot(test2x, aes(x = Day, y = Weight, color = Scenario))+
@@ -339,12 +362,12 @@ write.csv(meangrowth24, "outputs/meangrowth_2024actions.csv", row.names = F)
 ggplot(meangrowth24, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
   geom_col()+
   scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(1.2,1.6))+
+  #coord_cartesian(ylim = c(1.2,1.6))+
   ylab("total summer growth (g)")
 
 ggplot(meangrowth24, aes(x= Scenario, y = total2, fill = Scenario)) + 
   geom_col( )+
-  coord_cartesian(ylim = c(1.5,1.8))+
+  #coord_cartesian(ylim = c(1.5,1.8))+
   ylab("total summer growth (g)")
 
 
@@ -408,24 +431,43 @@ library(sf)
 library(ggspatial)
 library(deltamapr)
 
-Regions = mutate(R_DSIBM,
-                  Region = case_match(SUBREGION, "NW Suisun" ~ "Grizzly Bay",
-                                      c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun bay",
-                                      c("Yolo Bypass", "Sacramento River") ~ "North Delta",
-                                      c("Lower Sacramento River", "Confluence") ~ "Lower Sacramento",
-                                      .default = SUBREGION))
+Regions = mutate(R_EDSM_Subregions_Mahardja_FLOAT,
+                  Region = case_match(SubRegion, 
+                                      c("West Suisun Bay", "Mid Suisun Bay", "Honker Bay") ~ "Suisun Bay",
+                                      c("Yolo Bypass", "Sacramento River", "Cache Slough and Lindsey Slough",
+                                        "Liberty Island", "Lower Cache Slough", "Lower Sacramento River Ship Channel") ~ "North Delta",
+                                      c("San Joaquin River at Prisoners Pt",
+                                        "San Joaquin River at Twitchell Island", 
+                                        "Lower San Joaquin River") ~"San Joaquin River",
+                                      "Suisun Marsh" ~ "Suisun Marsh",
+                                      "Grizzly Bay" ~ "Grizzly Bay",
+                                      c("Lower Sacramento River", "Confluence",
+                                        "Sacramento River near Rio Vista") ~ "Lower Sacramento River")) %>%
+  filter(!is.na(Region))
 Reglable = group_by(Regions, Region) %>%
   summarize(across(everything(), first))
+
 
 
 ggplot()+
   geom_sf(data = WW_Delta )+
   geom_sf(data = Regions, aes(fill = Region), alpha = 0.5)+
   geom_sf_label(data = Reglable, aes(label = Region))+
-  coord_sf(ylim = c(38, 38.3), xlim = c(-122.2, -121.7))+
+  coord_sf(ylim = c(38, 38.4), xlim = c(-122.2, -121.6))+
   ylab(NULL)+xlab(NULL)+
   scale_fill_discrete(guide = "none") +
   annotation_north_arrow(location = "tl")+
   annotation_scale()+
   theme_bw()
   
+
+ggplot()+
+  geom_sf(data = WW_Delta )+
+  geom_sf(data = R_EDSM_Subregions_Mahardja_FLOAT)+
+  coord_sf(ylim = c(38, 38.3), xlim = c(-122.2, -121.7))+
+  ylab(NULL)+xlab(NULL)+
+  scale_fill_discrete(guide = "none") +
+  annotation_north_arrow(location = "tl")+
+  annotation_scale()+
+  theme_bw()
+

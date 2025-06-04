@@ -73,7 +73,7 @@ write.csv(sort(unique(zoops$Taxon)), file = "Cagezooptaxa.csv")
 lookup = read_csv("Data/Zooptaxa.csv")
 
 zoopIBMR = left_join(zoops, lookup, by = c("Taxon" = "Taxa")) %>%
-  mutate(BPUE = CPUE*Biomass/1000) %>% #convert from #=ug per ten gallons to mg/m3
+  mutate(BPUE = CPUE*Biomass/1000) %>% #convert from #=ug per ten gallons to mg/cm3
   group_by(IBMR, Location, Date, uniqueID) %>%
     summarize(BPUE = sum(BPUE, na.rm =T)) 
 
@@ -689,7 +689,7 @@ Regions = deltamapr::R_DSIBM %>%
 #                              `Pseudodiaptomus Adult`="Pseudodiaptomus forbesi Adult",
 #                              `Acanthocyclops vernalis Adult`="Acanthocyclops_UnID Adult"))%>%
 #   left_join(zoop_taxa, by="Taxlifestage")%>% # Add IBMR categories
-#   mutate(BPUE = CPUE * CarbonWeight_ug/1000) %>%
+#   mutate(BPUE = CPUE * CarbonWeight_ug/1000) %>% #convert to mg
 #   select(SampleID, Station, Latitude, Longitude, SalSurf, Date, Year, IBMR, CPUE, BPUE)%>%
 #   group_by(SampleID, Station, Latitude, Longitude, SalSurf, Date, Year, IBMR)%>%
 #   summarise(CPUE=sum(CPUE, na.rm =T), BPUE = sum(BPUE, na.rm =T), .groups="drop")%>% # Sum each IBMR categories
