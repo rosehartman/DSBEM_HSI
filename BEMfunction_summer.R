@@ -64,7 +64,7 @@ logit.temp.c<-c(-2.78,23.62)
 # based on Hasenbein et al. (2016), Fig. 2
 max.turb <- 5 #248.51*5^-0.674 # min NTU measured=5, convert to Secchi
 mid1.turb <- 35 #248.51*25^-0.674 # lower NTU at max feeding rate=25, convert to Secchi
-min1 <- 0.65 #1.5*8/25 # feeding rate at minNTU=8, feeding rate at 35NTU=25
+min1 <- 0.65 #1.5*8/25 # feeding rate at min NTU=8, feeding rate at 35 NTU=25
 min2 <- 0.65 # lowest Cmax effect at low turbidity
 turb.L.fx.mod <- glm(c(min1,min2)~c(20,45))
 a.turb <- (max.turb+mid1.turb)/2 # glm logit regression parameters

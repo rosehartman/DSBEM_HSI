@@ -220,7 +220,7 @@ fmwtave = fmwt2019a %>%
   mutate(BPUE = case_when(is.na(BPUE) ~CPUE*CarbonWeight_ug,
                           TRUE ~ BPUE)) %>%
   group_by(SampleID, Location, Date, Week, Year, IBMR)  %>%
-  summarize(BPUE = sum(BPUE, na.rm = T)) %>%
+  summarize(BPUE = sum(BPUE, na.rm = T)/1000) %>%
   group_by(Location, Week, Year, IBMR) %>%
   summarize(BPUE = mean(BPUE))
 

@@ -286,6 +286,14 @@ ggplot(totagrowth, aes(x = Scenario, y = Weight, group = Year, fill = Scenario))
 save(sfharun, totagrowth,sfharun2024, sfhasummary, file = "outputs/sfharunbothyears.RData")
 load("outputs/sfharunbothyears.RData")
 
+ggplot(filter(totagrowth, Stratum == "Suisun Marsh"), aes(x = Scenario, y = Weight, group = Year, fill = Scenario)) + 
+  geom_col(aes(alpha = Year), position = "dodge", color = "grey")+
+  scale_alpha_manual(values = c(0.6, 1))+
+  #coord_cartesian(ylim = c(1, 3))+
+  geom_errorbar(aes(ymin = Weight - sdWeight, ymax = Weight+sdWeight), position = "dodge")+
+  theme(axis.text.x = element_text(angle = 90))
+
+
 ###########################################################
 #look at growth by month
 totagrowth_month = sfhasummary %>%
@@ -435,8 +443,10 @@ ggplot(growth_6_A, aes(x = DOY, y = Weight, color = Scenario)) + geom_line()+
 
 #########################################################################
 #what's going on with Suisun marsh?
-#it looks like actions do worse than no actions, which doesn't make sesne because 
+#it looks like fall x2 do worse than no actions, which doesn't make sesne because 
 #zooplankton increse with actions.
+
+#also smelt are shrinking. 
 ggplot(filter(zoopsmedian, Region == "Suisun Marsh"), aes(x = DOY, y = Biomass, fill = (IBMR)))+ geom_col() +
   facet_wrap(~Scenario)
 
@@ -475,7 +485,7 @@ suisun =  suisunrun%>%
 
 ggplot(suisun, aes(x = Day, y = Length, color = Scenario)) + geom_line()+
   facet_wrap(~Stratum)+
-  coord_cartesian(xlim = c(140,155), ylim = c(53,55))+
+  #coord_cartesian(xlim = c(140,155))+
   scale_color_brewer(palette = "Set3")
 
 

@@ -16,6 +16,8 @@ library(gridExtra)
 library(paletteer)
 library(latticeExtra)
 library(gsw)
+library(chillR)
+library(readxl)
 
 ### 1. Read model parameters and data
 n.strata <- 2 #just Rio Vista and Belden's landing
@@ -34,27 +36,24 @@ VB.k<-2.72 #2.98 # VBGM parameters estimated in DSM TN 35
 Linf<-78.39 #76.1
 t0<--0.026 #-0.014
 
-#need to get these from the pre-deployment lengths. He origionally had four weights, is that importnat?
-start.L = read_csv("data/SmeltLengths.csv") 
-
-#I had more end weights than start weights, which might be important
-terminal.L <- read_csv("data/SmeltLengths_end.csv")
-terminal.L %>%
-  group_by(Location) %>%
-  summarize(FL = mean(ForkLength))
-#terminal.L <- c((start.L[1]+30.025),(start.L[2]+30.025),49.6,53.5,52.1,57) # EDSM observed, (10/15-11/15),2017,2018,2019
-
 #I can probably use real weights rather than length-weight equations
-start.Wt <- read_csv("data/SmeltLengths.csv")$Weight 
-terminal.Wt <- read_csv("data/SmeltLengths_end.csv")$Weight 
+start.Wt <- read_excel("data/19-24 Cage Growth Pre Measures.xlsx")
 
-#i can also use real standard errors, I guess
-terminal.Wtse <- c(0.299,0.356,0.367)
-mn.terminal.Wtse <- mean(terminal.Wtse)
-terminal.Wtse <- c(mn.terminal.Wtse ,mn.terminal.Wtse ,terminal.Wtse,mn.terminal.Wtse)
 
-#i'm not sure where these goes
-first.day <- c(1,(n.days+1)) # Jun 1 index for 2018 and 2019
+#FishBioenergetics 4.0 parameters
+fishbio = read_csv("jim-breck-FB4-3f95480/Parameters_official.csv") %>%
+  select(Family, Order, RTO, RTM, RTL, RK1, RK4, RK5, ACT, BACT)
+
+ACT = 1
+BACT = mean(filter(fishbio, BACT !=0)$BACT)
+RK4 = mean(filter(fishbio, RK4 !=0)$RK4)
+RTO <- 0.0196 # Hewett and Johnson 1992 via Whitledge and Hayward 1997 
+RTM <- 0 
+RTL <- 25 
+RK1 <- 1 # Hewett and Johnson 1992 via Whitledge and Hayward 1997 
+ACT <- 1
+SDA <- 0.175 # Rose et al. 2013 
+
 
 # bioenergetics model parameters, given by Rose et al. 2013a
 a.c <- c(0.18,0.18,0.18,0.1,0.1) # Rose
@@ -135,6 +134,7 @@ b.turb <- 0.12
 #OK, here is where I replace this table with the one from Belden's and Rio Vista
 #source("data organization.r")
 load("data/cagezoops_byyear.Rdata")
+load("data/cagezoops_byyearfmwt.Rdata")
 load("data/CDEC_wide_cages.RData")
 beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
 #this is model uncertainty
@@ -147,7 +147,7 @@ beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
 
 #d is days, i is strata.
 
-cagegrowth = function(PD.mn.array, CDEC_wide, start.Wt, beta_hat) {
+cagegrowth = function(PD.mn.array, CDEC_wide, start.Wt, beta_hat, speeds) {
   obs.temp.dat <- select(ungroup(CDEC_wide), Temp.BDL, Temp.RVB)
   obs.turb.dat <- select(ungroup(CDEC_wide), NTU.BDL, NTU.RVB)
   Locations = c("BDL", "RVB")
@@ -182,6 +182,9 @@ for (s in 1:nrow(beta_hat)) {
   #R.Q <- rep(runif(1,(0.036-0.25*0.036),(0.036+0.25*0.036)),5)
   #min1 <- runif(1,(0.64-0.25*0.64),(0.64+0.25*0.64))
   #b.turb <- runif(1,(0.1-0.25*0.1),(0.1+0.25*0.1))
+  
+
+
   
   a.c <- rep(beta_hat[s,1],5)
   b.c <- rep(beta_hat[s,2],5)
@@ -222,7 +225,21 @@ for (s in 1:nrow(beta_hat)) {
                                                   Limno = Limno[1,i], Location = stratum, 
                                                   Day = 1))
       C[1,i] <- sum(C.prey) # C = realized consumption rate
-      R <- a.r[4]*(Wt[1,i]^b.r[4])*exp(R.Q[stage]*as.numeric(obs.temp.dat[1,i]))
+      
+      # Brock's model included activity.
+      # I don't have these values for Delta Smelt, so let's pull from the other bioenergetic models
+      #included in fishbio4.0
+      
+      
+
+      
+      ifelse(obs.temp.dat[1,i] > RTL, 
+             VEL <- RK1 * Wt[1,i]^RK4, 
+             VEL <- ACT * (Wt[1,i]^RK4) * exp(BACT * as.numeric(obs.temp.dat[1,i])))
+      
+      ACTIVITY <- exp(RTO*VEL)*speeds[i]
+      
+      R <- a.r[4]*(Wt[1,i]^b.r[4])*exp(R.Q[stage]*as.numeric(obs.temp.dat[1,i]))*ACTIVITY
       Feg <- F.a[4]*C[1,i]
       U <- U.a[4]*(C[1,i]-Feg)
       SDA <- S.d[4]*(C[1,i]-Feg)
@@ -240,7 +257,7 @@ for (s in 1:nrow(beta_hat)) {
 
 #now this is the rest of the days
 
-for (i in 1:n.strata) { # region = Conf, NESuisun, LSac
+for (i in 1:n.strata) { # r
       for (d in 2:n.days) { # day
         stratum = Locations[i]
         Food[d,,i] <- PD.mn.array[d,,i]*t(V[,4]/K[,4])
@@ -263,7 +280,17 @@ for (i in 1:n.strata) { # region = Conf, NESuisun, LSac
         energy[d,i] <- e.d[1]*Limno[d,i] + e.d[2]*(1-Limno[d,i]) #sum(energy.prey)/n.prey
  
         C[d,i] <- sum(C.prey) # C = realized consumption rate
-        R <- a.r[4]*(Wt[d,i]^b.r[4])*exp(R.Q[stage]*as.numeric(obs.temp.dat[d,i]))
+        
+
+        ifelse(obs.temp.dat[d,i] > RTL, 
+               VEL <- RK1 * Wt[d,i]^RK4, 
+               VEL <- ACT * (Wt[d,i]^RK4) * exp(BACT * as.numeric(obs.temp.dat[d,i])))
+        
+        #make the smelt swim faster at rio vister
+        
+        ACTIVITY <- exp(RTO*VEL)*speeds[i]
+        
+        R <- a.r[4]*(Wt[d,i]^b.r[4])*exp(R.Q[stage]*as.numeric(obs.temp.dat[d,i]))*ACTIVITY
         Feg <- F.a[4]*C[d,i]
         U <- U.a[4]*(C[d,i]-Feg)
         SDA <- S.d[4]*(C[d,i]-Feg)
@@ -298,14 +325,14 @@ for (i in 1:n.strata) { # region = Conf, NESuisun, LSac
   
 
 cages2019 = cagegrowth(PD.mn.array = zoop19, CDEC_wide = filter(CDEC_wide, year(Date) == 2019 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+                       start.Wt = as.vector(filter(start.Wt, Year == 2019)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 View(cages2019[[2]])
 
 cages2023 = cagegrowth(PD.mn.array = zoop23, CDEC_wide = filter(CDEC_wide, year(Date) == 2023 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+                       start.Wt = as.vector(filter(start.Wt, Year == 2023)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 cages2024 = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+                       start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 
 allcages = bind_rows(mutate(cages2019[[1]], Year = "2019"), mutate(cages2023[[1]], Year = "2023"),
@@ -337,8 +364,12 @@ ggplot(allparams, aes(x = Day, y = Turbeffect, color = Location)) +
 
 
 
-ggplot(all.Wtlong, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Year)+ geom_smooth()#+
-  #geom_point(alpha = 0.2)
+ggplot(all.Wtlong, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Year, scales = "free_y")+ geom_smooth()+
+  ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
+  theme(legend.position = "bottom")
+
+ggsave("plots/cagegrowth.png", device = "png", width =8, height =4.5)
+
 #This is odd, I'd expect Rio Vista to be better thanmontezuma
 
 CDEC_wide = mutate(CDEC_wide, Year = year(Date))
@@ -353,26 +384,74 @@ ggplot(CDEC_wide, aes(x = Date, y = NTU.BDL)) + geom_line()+
   facet_wrap(~Year, scales = "free") +ylab("Turbidity")
 #but Rio Vista is also much clearer, is that enough to make a difference?
 
+#####different speeds################################################################
 
+cages2024a = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        beta_hat = beta_hat[1:200,], speeds = c(.1,0))
+cages2024b = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        beta_hat = beta_hat[1:200,], speeds = c(0.25,0))
+cages2024c = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        beta_hat = beta_hat[1:200,], speeds = c(1,0))
+
+cages2024d = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        beta_hat = beta_hat[1:200,], speeds = c(.5,0))
+cages2024e = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        beta_hat = beta_hat[1:200,], speeds = c(.75,0))
+
+
+
+allcagesspeed = bind_rows(mutate(cages2024[[1]], Speed = "1"), 
+                          mutate(cages2024a[[1]], Speed = "1.1"),
+                          mutate(cages2024b[[1]], Speed = "1.25"),
+                          mutate(cages2024c[[1]], Speed = "2"),
+                          mutate(cages2024d[[1]], Speed = "1.5"),
+                          mutate(cages2024e[[1]], Speed = "1.75"))
+
+
+all.Wtsp =  pivot_longer(allcagesspeed, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
+  filter(!is.na(Weight))
+
+
+ggplot(all.Wtsp, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Speed)+ geom_smooth()#+
+#geom_point(alpha = 0.2)
+
+ggplot(filter(all.Wtsp, Location == "Montezuma")) + 
+  geom_smooth(aes(x = Day, y = Weight, color = as.numeric(Speed), group = Speed))+
+  
+  geom_smooth(data = filter(all.Wtsp, Location == "RioVista"), aes(x = Day, y = Weight), color = "black",
+              linetype =2)+
+  scale_colour_gradient(high = "goldenrod1", low = "firebrick4", name = "Relative Swimming\nSpeed")+
+  ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
+  theme(legend.position = "bottom")
+
+ggsave("plots/cagegrowthspeed.png", device = "png", width =4.5, height =4.5)
+
+  
+  
 ############################################################
 #Try replacing the cage zoops with FMWT zoops
 
 
 cages2019fmwt = cagegrowth(PD.mn.array = zoop19fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2019 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+                           start.Wt = as.vector(filter(start.Wt, Year == 2019)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 cages2023fmwt = cagegrowth(PD.mn.array = zoop23fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2023 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+                           start.Wt = as.vector(filter(start.Wt, Year == 2023)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
-cages2024 = cagegrowth(PD.mn.array = zoop24fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                       start.Wt, beta_hat = beta_hat[1:200,])
+cages2024fmwt = cagegrowth(PD.mn.array = zoop24fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                           start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 
 allcagesfmwt = bind_rows(mutate(cages2019fmwt[[1]], Year = "2019"), mutate(cages2023fmwt[[1]], Year = "2023"),
                      mutate(cages2024[[1]], Year = "2024"))
 
 allparamsfmwt = bind_rows(mutate(cages2019fmwt[[2]], Year = "2019"), mutate(cages2023fmwt[[2]], Year = "2023"),
-                      mutate(cages2024[[2]], Year = "2024"))
+                      mutate(cages2024fmwt[[2]], Year = "2024"))
 
 
 all.Wtlongfmwt =  pivot_longer(allcagesfmwt, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
@@ -380,7 +459,11 @@ all.Wtlongfmwt =  pivot_longer(allcagesfmwt, cols = c(RioVista, Montezuma), name
 
 
 ggplot(all.Wtlongfmwt, aes(x = Day, y = Weight, color = Location)) + 
-  facet_wrap(~Year)+ geom_smooth()#+
+  facet_wrap(~Year,scales = "free_y")+ geom_smooth()+
+ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
+  theme(legend.position = "bottom")
+
+ggsave("plots/cagegrowthfmwt.png", device = "png", width =8, height =4.5)
 
 
 
@@ -457,3 +540,4 @@ actuallenghts %>%
   group_by(Location) %>%
   summarize(meanweight = mean(Weight),  weight_max = max(Weight),
             weight_min = min(Weight),meanlength = mean(ForkLength), FLmax = max(ForkLength), FLmin = min(ForkLength))
+
