@@ -150,6 +150,7 @@ zoop_data_mass<-mutate(zoop_data_mass, Subregion_edit = case_match(SUBREGION, c(
                                                                   c("Confluence", "Lower Sacramento River") ~ "Lower Sacramento",.default = SUBREGION))
 
 save(zoop_data_mass, file = "data/zoop_data_mass.RData")
+load("data/zoop_data_mass.RData")
 
 ```
 
@@ -335,6 +336,7 @@ sal_conversions = bind_rows(sal_conversionsa, sal_conversionsb, sal_conversionsc
 
 #save the results
 save(sal_conversions,  file = "outputs/salinityConversions_threeregions.RData")
+load("outputs/salinityConversions_threeregions.RData")
 ```
 
 
@@ -564,7 +566,7 @@ step4_2024 = read_csv("Outputs/sdm zoop sal adjustments2024.csv")
 
 
 save(sal_conversions, sal2016, step4, step4_2024, sal2024, file = "outputs/SalinityStuff.RData")
-
+load("outputs/SalinityStuff.RData")
 #write.csv(sal_conversions, "sal_conversions.csv")
 
 ```
@@ -927,7 +929,8 @@ ggplot(limno2, aes(x = SalSurf, y = BPUE_log1p)) + geom_smooth()+ facet_wrap(~Su
 #June
 
 ```{r}
-
+library(readxl)
+library(wql)
 juneEC = read_excel("data/EC_Graph_052725.xlsx", sheet = "Beldons Landing") %>%
   select(AA, `Observed EC`, `SMSCG Open`, `SMSCG Tidal Op`)%>%
   pivot_longer(cols = c(`Observed EC`, `SMSCG Open`, `SMSCG Tidal Op`),
@@ -975,6 +978,8 @@ step4june = step3%>%
 
 write.csv(step4june, here("Outputs", "zoop sal adjustments_2025june.csv"), row.names = F)
 
+step4june = read_csv("Outputs/zoop sal adjustments_2025june.csv")
+
 zoopsmedian2024june = pivot_longer(step4june,  cols = c(`Observed EC_u95`:last_col()),
        names_to = "Scenario", values_to = "Biomass") %>%
 filter(!str_detect(Scenario, "95")) %>%
@@ -1009,4 +1014,41 @@ ggplot(alljunepseudo, aes(x = Scenario, y = Biomass))+ geom_col()+
 
 
 ```
+
+Graph of both June and September for 2-pager
+
+```{r}
+september = filter(zoopscon24, Taxon == "Pseudodiaptomus", region == "Suisun Marsh", Month == 9,
+                   Scenario %in% c("NoAction", "GatesOnly")) %>%
+  rename(Biomass_L95= lower, Biomass_U95 = upper) %>%
+  mutate(Month = "September", Scenario = case_match(as.character(Scenario), "NoAction" ~ "SMSCG Open",
+                                                    "GatesOnly" ~ "SMSCG Tidal Op"))
+
+suisunX = filter(zoopscon24, Taxon == "Pseudodiaptomus", region == "Suisun Marsh", 
+                   Scenario %in% c("NoAction", "GatesOnly"), Month !=6) %>%
+  rename(Biomass_L95= lower, Biomass_U95 = upper) %>%
+  mutate(Scenario = case_match(as.character(Scenario), "NoAction" ~ "SMSCG Open",
+                                                    "GatesOnly" ~ "SMSCG Tidal Op"))
+
+#just september and june
+pseudo2024 = bind_rows(mutate(alljunepseudo, Month = "June"), september)
+
+
+ggplot(pseudo2024, aes(x = Scenario, y = Biomass))+ facet_wrap(~Month)+
+  geom_col()+
+  geom_errorbar(aes(ymin = Biomass_L95, ymax = Biomass_U95))+
+  ylab("Pseudodiaptomus Biomass (ug/m3)")
+
+#all months
+
+pseudo2024all = bind_rows(mutate(alljunepseudo, Month = 6), suisunX)
+
+ggplot(pseudo2024all, aes(x = Month, y = Biomass, fill = Scenario, group = Scenario))+ 
+  geom_col(position = "dodge")+
+  geom_errorbar(aes(ymin = Biomass_L95, ymax = Biomass_U95), position = "dodge")+
+  ylab("Pseudodiaptomus Biomass (ug/m3)")
+
+```
+
+
 

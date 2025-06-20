@@ -11,6 +11,7 @@ library(deltamapr)
 library(discretewq)
 library(wql)
 library(here)
+library(ggspatial)
 
 #27 is turbidity in NTU, 221 is turbidity in FNU, 25 is water temperature in farenhieght
 # CDEC_cages = cdec_query(c("BDL", "RVB"), sensors = c(27, 221, 25), 
@@ -46,7 +47,7 @@ CDEC_wide = mutate(CDEC_wide, jday = yday(Date), daylight = daylength(38.15, jda
          Temp.BDL = watertemperature_BDL,Temp.RVB = watertemperature_RVB)
 
 save(CDEC_wide, file = c("data/CDEC_wide_cages.RData"))
-##########################################################################
+###########Organize cagge Zooplankton###############################################################
 #now organize the zooplankton data
 
 
@@ -192,7 +193,7 @@ zoop24 <- abind(montzoops24, Riozoops24, along=3)
 save(zoop19, zoop23, zoop24, file = "data/cagezoops_byyear.Rdata")
 
 
-##############################################################################
+##########FMWT zoops for cages####################################################################
 #zoops from the long-term surveys instead.
 
 fmwt2019 = Zoopsynther(Data_type = "Community", Sources = c("EMP", "FMWT", "STN"), Size_class = "Meso",
@@ -311,7 +312,7 @@ zoop24fmwt <- abind(montzoops24fmwt, Riozoops24fmwt, along=3)
 save(zoop19fmwt, zoop23fmwt, zoop24fmwt, file = "data/cagezoops_byyearfmwt.Rdata")
 
 
-#####################dates##############################################################################
+#####################Average zoops for cages##############################################################################
 #Now let's try adjusting the zooplankton data so we have the same average across the entire 6 weeks per site
 #this will allow us to see the impact of temperature better
 
@@ -351,7 +352,7 @@ zoopx <- abind(montzoopsx, Riozoopsx, along=3)
 zoopsx2 = abind(Riozoopsx, Riozoopsx, along=3)
 
 
-########################################################
+############long term water quality############################################
 #data for water quality, 2010-2024
 
 alldays = seq(ymd("2010-01-01"), ymd("2024-12-31"), by = "day")
@@ -453,6 +454,20 @@ cdecstations = read_csv("data/station_data.csv") %>%
 
 ########map##########
 #map of stations for synthesis report
+SFHApallette = c(Confluence = "firebrick",
+                 `Lower Sacramento River` = "#FEE08b", 
+                 `NE Suisun` = "darkseagreen", 
+                 `NW Suisun` = "cyan3", 
+                 `SE Suisun` = "lightskyblue", 
+                 `Suisun Marsh` = "#f46d43", 
+                 `SW Suisun` = "darkblue")
+
+SFHApal = c(`Sacramento River` = "#FEE08b", #combined with confluence
+                 `Suisun Bay` = "darkblue", 
+                 `Grizzly bay` = "cyan3", 
+                 `Suisun Marsh` = "#f46d43")
+
+
 stations_all <- read_csv("data/station_data.csv")%>%
   filter(!is.na(Latitude) )%>%
   select(station, Latitude, Longitude) %>%
@@ -463,10 +478,19 @@ ggplot() +
   geom_sf(data = WW_Delta)+
   geom_sf(data = smeltregions, aes(fill = SUBREGION), alpha = 0.3)+
   geom_sf(data =stations_all)+
-  coord_sf(ylim = c(38, 38.25), xlim = c(-122.15, -121.7))
+  coord_sf(ylim = c(38, 38.25), xlim = c(-122.15, -121.7))+
+  scale_fill_manual(values= SFHApallette,
+                    name = "Region")+
+  theme_bw()+
+  annotation_scale()+
+  annotation_north_arrow(location = "tr")
+
+#I think i want fewer regions.Hm. But then it's harder to do the <6 thing. 
+#Maybe I'll run it with all the regions then do some averaging afterawrds
 
 
-#######
+
+#######all water quality, discrete ancd continuous ################
 #put all the continuous water quality data together############
 Allcontwq = bind_rows(WQ20102016a, WQ20172024)  %>%
   mutate(Date = date(ObsDate), Month = month(ObsDate), DOY = yday(ObsDate), Year = year(ObsDate))
@@ -606,7 +630,7 @@ Salwide = filter(AllWQmean2, Parameter == "salinity") %>%
 
 save(AllWQmean2, Tempx2, Turbx2, file = "WaterQuality20102024.RData")
 
-#################################################
+#####constant temperature############################################
 #constant temperature
 # calculate average temperature 
 Tempave = mean(filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(153:305))$ValueImputed)
@@ -632,7 +656,7 @@ Temp_constant = array(unlist(test_constant),dim=c(153,11, 15),
 Tempx_constant = Temp_constant[c(1:153), c(5:11), c(1:15)]
 Tempx2_constant = apply(Tempx_constant, c(2,3), as.numeric)
 
-#################################################
+###########constant turbidity ######################################
 #constant turbidity
 # calculate average turbidity 
 turbave = mean(filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(153:305))$ValueImputed)
@@ -663,17 +687,17 @@ Salwide = filter(AllWQmean2, Parameter == "salinity") %>%
   select(-Value) %>%
   pivot_wider(names_from = Region, values_from = ValueImputed)
 
-save(AllWQmean2, Tempx2, Turbx2, turbx2_constant, Tempx2_constant, file = "WaterQuality20102024.RData")
+save(AllWQmean2, Tempx2, Turbx2, turbx2_constant, Tempx2_constant, file = "data/WaterQuality20102024.RData")
 
 
-##########################################################################################
+################mesozooplankton##########################################################################
 #just mesozoops to put in BEM
 
-
-#Why don't i have DOP on here?
-# zoop_data_meso<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT", "DOP"), 
+# 
+# #Why don't i have DOP on here?
+# zoop_data_meso<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT", "DOP"),
 #                             Time_consistency = FALSE, Years = c(2010:2022), Size_class = "Meso")
-
+# 
 zoop_taxa<-read_csv(here("data/zoopstaxa.csv"), col_types=cols_only(Taxlifestage="c", IBMR="c", CarbonWeight_ug = "d"))%>%
   distinct()
 
@@ -682,7 +706,7 @@ Regions = deltamapr::R_DSIBM %>%
   filter(SUBREGION %in% c("Lower Sacramento River",  "Confluence", "Suisun Marsh",
                           "SW Suisun",  "SE Suisun", "NE Suisun", "NW Suisun")) %>%
   rename(Region = SUBREGION)
-
+# 
 # zoopsallm = zoop_data_meso %>%
 #   filter(!is.na(Longitude), !is.na(SalSurf)) %>%
 #   mutate(Taxlifestage=recode(Taxlifestage, `Synchaeta bicornis Adult`="Synchaeta Adult", # Change some names to match to biomass conversion dataset
@@ -694,10 +718,10 @@ Regions = deltamapr::R_DSIBM %>%
 #   group_by(SampleID, Station, Latitude, Longitude, SalSurf, Date, Year, IBMR)%>%
 #   summarise(CPUE=sum(CPUE, na.rm =T), BPUE = sum(BPUE, na.rm =T), .groups="drop")%>% # Sum each IBMR categories
 #   st_as_sf(coords=c("Longitude", "Latitude"), crs=4326)%>%
-#   st_transform(crs=st_crs(Regions)) %>% 
+#   st_transform(crs=st_crs(Regions)) %>%
 #   st_join(Regions %>%
 #             select(Region)) %>%
-#   st_drop_geometry() %>% 
+#   st_drop_geometry() %>%
 #   filter(!is.na(Region))%>%
 #   mutate(doy=yday(Date), #Day of year
 #          Month=month(Date), # Month
@@ -712,27 +736,12 @@ Regions = deltamapr::R_DSIBM %>%
 
 
 load("data/sfhazoops.RData")
-zoopsallm = sfhazoops
+zoopsallm = mutate(sfhazoops, BPUE = BPUE/1000) #convert to mg
 
 daystaxa = merge(data.frame(Date = alldays), data.frame(IBMR = unique(zoopsallm$IBMR))) %>%
   merge(data.frame(Region = unique(zoopsallm$Region))) %>%
   mutate(Year = year(Date), doy = yday(Date), Month = month(Date))
 # 
-# zoopsmwide = zoopsallm %>%
-#    group_by(Region, IBMR, Date, Month, Year, doy) %>%
-#   summarize(BPUE = mean(BPUE)) %>%
-#   filter(!is.na(IBMR)) %>%
-#   full_join(daystaxa) %>%
-#   group_by(Region, IBMR, Year) %>%
-#   arrange(doy) %>%
-#   mutate(BPUEImputed = na_locf(ts(BPUE))) %>% #repeat most recent value
-#   ungroup() %>%
-#   pivot_wider(id_cols = c(Region,  Date, Month, doy,  Year),
-#                          names_from = IBMR, values_from = BPUEImputed) %>%
-#   select(Region,  Date, Month, doy,  Year,
-#          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
-#          daphnia, othcyc, other, eurytem, pdiapfor) %>%
-#   mutate(Day = mday(Date)) 
 
 #try doing monthly averages instead of LOCF
 #shoudl this be geometric mean or median insted of mean?
@@ -746,15 +755,25 @@ zoopsmAvea = zoopsallm %>%
 mutate(BPUE = case_when(is.na(BPUE) & Year == 2024 & Region == "SW Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2024, Month %in% c(6:10))$BPUE),
                         is.na(BPUE) & Year == 2015 & Region == "NE Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2015, Month == 9)$BPUE),
                         is.na(BPUE) & Year == 2019 & Region == "NE Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2019, Month == 10)$BPUE),
-                         TRUE ~ BPUE)) 
+                         TRUE ~ BPUE)) %>%
+  filter(Month %in% c(6:10))
 
-zoopsmAve = zoopsmAvea%>%
+test = filter(zoopsmAve, Month ==6 & Year ==2024)
+
+zoopsmAvea = filter(zoopsmAvea, !Date  %in% test$Date)
+
+#I don't have june data for 2024 yet, so I"m going to use the 2023 data and hope it works.
+zoops02023jun = filter(zoopsmAvea, Month ==7, Year ==2024, Date != ymd("2024-07-31")) %>%
+  mutate(Month = 6, Date = Date - 30)
+
+
+zoopsmAve = bind_rows(zoopsmAvea, zoops02023jun)%>%
   pivot_wider(id_cols = c(Region,  Date, Month, doy,  Year),
               names_from = IBMR, values_from = BPUE) %>%
   select(Region,  Date, Month, doy,  Year,
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
          daphnia, othcyc, other, eurytem, pdiapfor) %>%
-  mutate(Day = mday(Date)) 
+  mutate(Day = yday(Date)) 
 
 #we are randomly missingm September of 2015 and daphnia in october of 2019. Also a lot of 2024. 
 
@@ -769,9 +788,14 @@ zoopsmAve = zoopsmAvea%>%
 #   mutate(BPUEImputed = na_locf(ts(BPUE)))
 
 
-ggplot(filter(zoopsmAve, doy %in% c(200:300), Year == 2024),
+ggplot(filter(zoopsmAve,  Year == 2024),
        aes(x = Date, y = pdiapfor)) + geom_line()+ geom_point()+
   facet_wrap(~Region)
+
+ggplot(zoopsmAve,
+       aes(x = Date, y = pdiapfor)) + geom_line()+ geom_point()+
+  facet_wrap(~Region)
+
 
 #I don't have any data from SW suisun ffor 2024. I'm going to copy the NW suisun data. 
 
@@ -801,7 +825,7 @@ PD.mn.array = zoopx2 #days by prey by strata by year!
 
 
 
-save(zoopsmwide, zoopsmAve, zoopx2, file = "zoopsmwide.RData")
+save(zoopsmwide, zoopsmAve, zoopx2, file = "data/zoopsmwide.RData")
 
 #
 ###########constant zooplankton ##############

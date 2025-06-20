@@ -195,7 +195,7 @@ a.turb <- (max.turb+mid1.turb)/2 # glm logit regression parameters
 b.turb <- 0.12
 
 
-source("BEM consumption functions_v3.2.R") # load consumption functions
+#source("BEM consumption functions_v3.2.R") # load consumption functions
 
 #next step is cdec turbitiy and temperature
 load("WaterQuality20102022.RData")
