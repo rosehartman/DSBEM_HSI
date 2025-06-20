@@ -16,6 +16,7 @@ library(gridExtra)
 library(paletteer)
 library(latticeExtra)
 library(gsw)
+library(chillR)
 source("BEMfunction.R")
 ### 1. Read model parameters and data
 n.strata <- 7 #"Confluence"   "NE Suisun"    "NW Suisun"    "SE Suisun"    "Suisun Marsh" "SW Suisun" "Lower Sacramento RIver"
@@ -43,13 +44,6 @@ start.L = c(rep(23, 13))
 terminal.L <- c((start.L[1]+30.025),(start.L[2]+30.025),49.6,53.5,52.1,57) # EDSM observed, (10/15-11/15),2017,2018,2019
 start.Wt <- ln.a[2]*start.L^ln.b[2]
 terminal.Wt <- ln.a[2]*terminal.L^ln.b[2]
-
-
-terminal.Wtse <- c(0.299,0.356,0.367)
-mn.terminal.Wtse <- mean(terminal.Wtse)
-terminal.Wtse <- c(mn.terminal.Wtse ,mn.terminal.Wtse ,terminal.Wtse,mn.terminal.Wtse)
-
-first.day <- c(1,(n.days+1)) # Jun 1 index for 2018 and 2019
 
 #prey stuff
 V <- matrix(NA,n.prey,5)					# V.ij is vulnerability of prey type j to fish i. Set to 1 for all life stages eating all zooplankton types; except DS larvae values were 0 except for Limnoithona
@@ -99,13 +93,6 @@ turb.L.fx.mod <- glm(c(min1,min2)~c(20,45))
 a.turb <- (max.turb+mid1.turb)/2 # glm logit regression parameters
 b.turb <- 0.12
 
-
-terminal.Wtse <- c(0.299,0.356,0.367)
-mn.terminal.Wtse <- mean(terminal.Wtse)
-terminal.Wtse <- c(mn.terminal.Wtse ,mn.terminal.Wtse ,terminal.Wtse,mn.terminal.Wtse)
-
-first.day <- c(1,(n.days+1)) # Jun 1 index for 2018 and 2019
-
 # bioenergetics model parameters, given by Rose et al. 2013a
 a.c <- c(0.18,0.18,0.18,0.1,0.1) # Rose
 b.c <- c(-0.275,-0.275,-0.275,-0.54,-0.54)
@@ -145,8 +132,8 @@ e.d = c(1823, rep(2590, 11)) #go back to what is in Rose et al.
 # J/g; the exception was Limnoithona, for which energy density
 # was assumed to be 30% lower (1,823 J/g) 
 
-source("BEM consumption functions_v3.2.R") # load consumption functions
-load("WaterQuality20102024.RData")
+#source("BEM consumption functions_v3.2.R") # load consumption functions
+load("data/WaterQuality20102024.RData")
 
 obs.temp.dat <- Tempx2
 obs.turb.dat <- Turbx2
@@ -169,9 +156,8 @@ beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
 
 
 ### 3. Model bioenergetics and reference points
-load("zoopsmwide.RData")
+load("data/zoopsmwide.RData")
 #OK, this just fills in prey densities. I can do this with the zoop data. 
-PD.mn.array = zoopx2 #days by prey by strata
 
 sfharun = smelt_bioenergetics(PD.mn.array = zoopx2, obs.temp.dat = Tempx2, obs.turb.dat = Turbx2, 
                     start.L = rep(23, 15), ex.strata = ex.strata, beta_hat = beta_hat[1:200,], start.year = 2010)
@@ -254,7 +240,38 @@ trends
 #OK, so maybe I don't worry about the weird things in DW suisun that much because it isn't significant
 
 
-save(Wt.summary, sfharun, DF, Wtsum2, file = "outputs/summerflowweights.RData")
+#save(Wt.summary, sfharun, DF, Wtsum2, file = "outputs/summerflowweights.RData")
+
+########larger regions#############
+
+#put lower sac and confluence together, plus suisun together
+
+Wtsummary2 = Wt.summary %>%
+  mutate(BigRegion = case_when(Region %in% c("Confluence", "Lower Sacramento River") ~ "River",
+                               Region %in% c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun Bay",
+                               Region == "NW Suisun" ~ "Grizzly Bay",
+                               TRUE ~ Region)) %>%
+  group_by(BigRegion, Year, Day) %>%
+  summarize(Weight = mean(MWeight), Length = mean(MLength))
+
+ggplot(Wtsummary2, aes(x = Day, y = Weight, color = as.factor(Year))) + geom_line(linewidth =1)+ 
+  facet_wrap(~BigRegion)+
+  scale_color_viridis_d(option = "turbo", name = NULL)+
+  theme_bw()+
+  scale_x_continuous(breaks = c(0,30, 61, 92, 122, 153), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))+
+  ylab("Predicted Weight (g)")
+
+ggsave("plots/SFHA_baseline.png", device = "png", width =7, height =5)
+
+
+ggplot(Wtsummary2, aes(x = Day, y = Weight, color = BigRegion)) + geom_line(linewidth =1)+ 
+  facet_wrap(~Year)+
+  scale_color_viridis_d(option = "turbo", name = NULL)+
+  theme_bw()+
+  scale_x_continuous(breaks = c(0,30, 61, 92, 122, 153), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))+
+  ylab("Predicted Weight (g)")
+
+
 ############################################################
 #OK, now I need to throw out growht when it gets too salty
 
@@ -293,7 +310,13 @@ Meangrowth6a = Wtsal %>%
 
 
 
-ggplot(Meangrowth6a, aes(x = Day, y = Weight,color = as.factor(Year))) + geom_line()
+ggplot(Meangrowth6a, aes(x = Day, y = Weight,color = as.factor(Year))) + 
+  geom_line(linewidth = 1)+
+  scale_color_viridis_d(option = "turbo", name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+
+  theme_bw()
+
+ggsave("plots/sfha_growthlessthan6_baseline.png", device = "png", width =5, height = 4)
 
 ggplot(Meangrowth6a, aes(x = Day, y = Growth,color = as.factor(Year))) + geom_line()
 #why did my results change so much with th enew data?
@@ -313,7 +336,7 @@ ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth(metho
 
 x2lm6 = lm(Weight ~ X2, Meangrowthsum)
 summary(x2lm6)
-#barely significant
+#Nope.
 
 ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth()+
   geom_text(aes(label = Year))
@@ -340,7 +363,7 @@ ggplot(Meangrowthsum, aes(x = Temperature, y = Weight)) + geom_point()+ geom_smo
 ########################
 #x2 versus good temperature
 
-TempsandX2 = left_join(Meantemps, DF)
+TempsandX2 = left_join(Meantemps_nosalt, DF)
 
 ggplot(TempsandX2, aes(x = X2, y = Temperature)) + geom_point()+ geom_smooth(method = "lm")
 
@@ -349,7 +372,7 @@ tempregion = AllWQmean2 %>%
   filter(Month %in% c(6:9), Parameter == "watertemperature") %>%
   group_by(Region, Year, DOY, Date)  %>%
   summarize(Temp = mean(Value, na.rm =T)) %>%
-  left_join(mutate(Dayflow, Date = mdy(Date)))
+  left_join(DF)
 
 
 ggplot(tempregion, aes(x = Region, y = Temp)) + geom_boxplot()
@@ -379,4 +402,53 @@ zoopsave = zoopsallm %>%
 ggplot(zoopsave, aes(x = Year, y = BPUE, fill = IBMR)) +
   facet_wrap(~Region)+ geom_col()
 
-##########################################################
+########only change zoops##################################################
+
+sfharun_zoops = smelt_bioenergetics(PD.mn.array = zoopx2, obs.temp.dat = Tempx2_constant, 
+                                    obs.turb.dat = turbx2_constant, 
+                              start.L = rep(23, 15), ex.strata = ex.strata, 
+                              beta_hat = beta_hat[1:200,], start.year = 2010)
+
+ggplot(sfharun_zoops, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  facet_wrap(~Stratum) + geom_smooth()
+
+
+Wt.summary_zoops = sfharun_zoops %>%
+  rename(Region = Stratum) %>%
+  group_by(Region, Year, Day) %>%
+  summarize(MWeight = mean(Weight, na.rm =T), sdWeight = sd(Weight, na.rm =T),
+            MLength = mean(Length, na.rm =T), sdLength = sd(Length, na.rm =T)) 
+
+
+Wt.summary_zoops = left_join(Wt.summary_zoops, sal) %>%
+  left_join(DF)
+
+ggplot(Wt.summary_zoops, aes(x = Day, y = MWeight, color = as.factor(Year)))+
+  facet_wrap(~Region) + geom_line()
+
+#growth in less than 6 PSU
+Wtsalzoops = sfharun_zoops %>%
+  rename(Region = Stratum) %>%
+  group_by(s, Region, Year) %>%
+  arrange(Day) %>%
+  mutate(gpergperd = (Weight -lag(Weight))/lag(Weight),
+         gpergperd = replace_na(gpergperd, 0)) %>%
+  ungroup() %>%
+  left_join(salx)
+
+
+
+
+Meangrowth6azoops = Wtsalzoops %>%
+  group_by(Year, Day) %>%
+  filter(GoodSalinity) %>%
+  summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
+  group_by(Year) %>%
+  mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
+  ungroup()
+
+ggplot(Meangrowth6azoops, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()
+
+

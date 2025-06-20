@@ -132,10 +132,11 @@ zoopsmedian = pivot_longer(step4,  cols = c(`10800-3-m_median`:last_col()),
 zoopsmAveSummer = zoopsmedian%>%
   filter(DOY %in% c(152:304))%>%
   group_by(Region, Scenario, IBMR) %>%
-  mutate(Biomass = na.locf(Biomass)) %>% #if we are missing data, carry last observation forward
+  mutate(Biomass = na.locf(Biomass),
+         Biomass_mg = Biomass/1000) %>% #if we are missing data, carry last observation forward, and convert
   ungroup() %>%
   pivot_wider(id_cols = c(Region, DOY,  Scenario),
-              names_from = IBMR, values_from = Biomass) %>%
+              names_from = IBMR, values_from = Biomass_mg) %>%
   select(Region,  DOY,  Scenario, #put it in the right order for the model
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
          daphnia, othcyc, other, eurytem, pdiapfor) %>%
@@ -167,10 +168,11 @@ zoopsmedian2024 = pivot_longer(step4_2024,  cols = c(`10800-3-m_median`:last_col
 zoopsmAveSummer2024 = zoopsmedian2024%>%
   filter(DOY %in% c(152:304))%>%
   group_by(Region, Scenario, IBMR) %>%
-  mutate(Biomass = na.locf(Biomass)) %>%
+  mutate(Biomass = na.locf(Biomass),
+         Biomass_mg = Biomass/1000) %>%
   ungroup() %>%
   pivot_wider(id_cols = c(Region, DOY,  Scenario),
-              names_from = IBMR, values_from = Biomass) %>%
+              names_from = IBMR, values_from = Biomass_mg) %>%
   select(Region,  DOY,  Scenario,
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
          daphnia, othcyc, other, eurytem, pdiapfor) %>%
@@ -275,13 +277,22 @@ ggplot(totagrowth, aes(x = Scenario, y = Length, group = Year, fill = Scenario))
 ggplot(totagrowth, aes(x = Scenario, y = Weight, group = Year, fill = Scenario)) + 
   geom_col(aes(alpha = Year), position = "dodge", color = "grey")+
   scale_alpha_manual(values = c(0.6, 1))+
-  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(1, 3))+
+  facet_wrap(~Stratum)+ #coord_cartesian(ylim = c(1, 3))+
   geom_errorbar(aes(ymin = Weight - sdWeight, ymax = Weight+sdWeight), position = "dodge")+
   theme(axis.text.x = element_text(angle = 90))
 
+#oof, why is suisun marsh now so low?
 
 save(sfharun, totagrowth,sfharun2024, sfhasummary, file = "outputs/sfharunbothyears.RData")
 load("outputs/sfharunbothyears.RData")
+
+ggplot(filter(totagrowth, Stratum == "Suisun Marsh"), aes(x = Scenario, y = Weight, group = Year, fill = Scenario)) + 
+  geom_col(aes(alpha = Year), position = "dodge", color = "grey")+
+  scale_alpha_manual(values = c(0.6, 1))+
+  #coord_cartesian(ylim = c(1, 3))+
+  geom_errorbar(aes(ymin = Weight - sdWeight, ymax = Weight+sdWeight), position = "dodge")+
+  theme(axis.text.x = element_text(angle = 90))
+
 
 ###########################################################
 #look at growth by month
@@ -376,8 +387,8 @@ ggplot(test2x, aes(x = Day, y = growth, color = Scenario))+
 #OK, well that's confusing. 
 
 ggplot(test2x, aes(x = Day, y = growth2, color = Scenario))+
-  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")+
-  coord_cartesian(xlim = c(120, 155), ylim = c(0.018, 0.021))
+  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/day")#+
+  #coord_cartesian(xlim = c(120, 155), ylim = c(0.018, 0.021))
 
 ggplot(test2x, aes(x = Day, y = Weight, color = Scenario))+
   geom_line() + facet_wrap(~Year)+ylab("Weight (g)")
@@ -402,89 +413,17 @@ write.csv(meangrowth, "outputs/meangrowth_summeractions.csv")
 ggplot(meangrowth, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
   geom_col(aes(alpha = Year), position = "dodge")+
   scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(1.5,2.1))+
+  #coord_cartesian(ylim = c(1.5,2.1))+
   ylab("total summer growth (g)")
 
 ggplot(meangrowth, aes(x= Scenario, y = total2, fill = Scenario, group = Year)) + 
   geom_col(aes(alpha = Year), position = "dodge")+
   scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(1.5,2.3))+
+ # coord_cartesian(ylim = c(1.5,2.3))+
   ylab("total summer growth (g)")
 
+#OK, these results make more sesne
 
-#####################################################################
-#why is X2 lower than no action?
-#Maybe growth is higher in the confluence and they are restricted tot the confluence in no-action,
-#but are in the Bay with lower food in the Action scenario?
-
-growth_6a = sfhasummary %>%
-  group_by(Year, Scenario) %>%
-  mutate(lagweight = dplyr::lag(Weight), DOY = Day +153,
-         Growth = (Weight-lagweight)) %>%
-  ungroup() %>%
-  left_join(salsummary) %>%
-  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
-                          TRUE ~ FALSE)) %>%
-  filter(DOY>153)
-
-ggplot(filter(growth_6a, Scenario %in% c("Noaction", "fallx2")),
-       aes(x = DOY, y = Stratum))+ geom_tile(aes(color = Good, fill = Growth))+
-  scale_alpha_manual(values = c(0.5, 1))+
-  facet_wrap(Scenario~Year, nrow =2)
- 
-
-test = growth_6a %>%
-  filter(!Stratum  %in% c("SE Suisun", "NE Suisun", "NW Suisun")) %>%
-  group_by(Year, Scenario) %>%
-  mutate(lagweight = dplyr::lag(Weight), DOY = Day +153,
-         Growth = (Weight-lagweight)) %>%
-  ungroup() %>%
-  left_join(salsummary) %>%
-  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
-                          TRUE ~ FALSE)) %>%
-  filter(DOY>153) %>% 
-  group_by(Scenario, Year, Day) %>% 
-  summarize(growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
-  group_by(Scenario, Year) %>%
-  mutate(Weight = case_when(Day ==1 ~0.07329784)) %>% #starting weight was 0.07 (used in next step)
-  ungroup()
-
-
-
-#now apply the function to the growth rate data
-test2 = test %>%
-  group_by(Scenario, Year) %>%
-  do(Weight = growing(.))
-
-#that didn't come out like i intended, this hould fix it.
-test2a = bind_rows(test2$Weight)
-
-#plot the results
-ggplot(filter(test2a,Day >1), aes(x = Day, y = growth, color = Scenario))+
-  geom_line() + facet_wrap(~Year)+ylab("Growth Rate g/g/day")
-#OK, well that's confusing. 
-
-ggplot(filter(test2a,Day >1), aes(x = Day, y = Weight, color = Scenario))+
-  geom_line() + facet_wrap(~Year)+ylab("Weight (g)")
-
-
-#calculate mean growth rate and maximum weigth if fish are restricted to
-#salinities of <6
-
-#this is what does into the consequence table.
-meangrowth2 = group_by(test2a, Year, Scenario) %>%
-  summarise(Growth = mean(growth), total = max(Weight, na.rm =T)) %>%
-  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m",
-                                                "10800-60d", "10800-b", "15000-3-m", "15000-60d",
-                                                "15000-b", "21000")))
-
-ggplot(meangrowth2, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
-  geom_col(aes(alpha = Year), position = "dodge")+
-  scale_alpha_manual(values = c(0.7, 1))+
-  coord_cartesian(ylim = c(.5,.7))+
-  ylab("total summer growth (g)")
-
-#OK! Fall X2 is higher in this situation. So i'd probably a matter of Suisun declining in suitablity
 
 ##################################################################
 
@@ -504,8 +443,10 @@ ggplot(growth_6_A, aes(x = DOY, y = Weight, color = Scenario)) + geom_line()+
 
 #########################################################################
 #what's going on with Suisun marsh?
-#it looks like actions do worse than no actions, which doesn't make sesne because 
+#it looks like fall x2 do worse than no actions, which doesn't make sesne because 
 #zooplankton increse with actions.
+
+#also smelt are shrinking. 
 ggplot(filter(zoopsmedian, Region == "Suisun Marsh"), aes(x = DOY, y = Biomass, fill = (IBMR)))+ geom_col() +
   facet_wrap(~Scenario)
 
@@ -544,7 +485,7 @@ suisun =  suisunrun%>%
 
 ggplot(suisun, aes(x = Day, y = Length, color = Scenario)) + geom_line()+
   facet_wrap(~Stratum)+
-  coord_cartesian(xlim = c(140,155), ylim = c(53,55))+
+  #coord_cartesian(xlim = c(140,155))+
   scale_color_brewer(palette = "Set3")
 
 
