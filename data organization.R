@@ -464,7 +464,7 @@ SFHApallette = c(Confluence = "firebrick",
 
 SFHApal = c(`Sacramento River` = "#FEE08b", #combined with confluence
                  `Suisun Bay` = "darkblue", 
-                 `Grizzly bay` = "cyan3", 
+                 `Grizzly Bay` = "cyan3", 
                  `Suisun Marsh` = "#f46d43")
 
 
@@ -472,7 +472,13 @@ stations_all <- read_csv("data/station_data.csv")%>%
   filter(!is.na(Latitude) )%>%
   select(station, Latitude, Longitude) %>%
   st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, remove = F)
-smeltregions = filter(R_DSIBM, SUBREGION %in% c("Confluence","NE Suisun","NW Suisun","SE Suisun","Suisun Marsh","SW Suisun","Lower Sacramento River"))
+
+smeltregions = filter(R_DSIBM, SUBREGION %in% c("Confluence","NE Suisun","NW Suisun","SE Suisun","Suisun Marsh","SW Suisun","Lower Sacramento River", "Sacramento River")) %>%
+  mutate(Region = case_match(SUBREGION, c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun Bay",
+                             "NW Suisun" ~ "Grizzly Bay",
+                             c("Confluence", "Lower Sacramento River", "Sacramento River") ~ "Sacramento River",
+                             "Suisun Marsh" ~ "Suisun Marsh"))
+
 
 ggplot() +
   geom_sf(data = WW_Delta)+
@@ -487,7 +493,20 @@ ggplot() +
 
 #I think i want fewer regions.Hm. But then it's harder to do the <6 thing. 
 #Maybe I'll run it with all the regions then do some averaging afterawrds
+ggplot() +
+  geom_sf(data = WW_Delta)+
+  geom_sf(data = smeltregions, aes(fill = Region), alpha = 0.3)+
+  geom_sf(data =stations_all)+
+  geom_sf_label(data =stations_all, aes(label = station), nudge_x = -0.01, hjust =0.8)+
+  coord_sf(ylim = c(38, 38.25), xlim = c(-122.15, -121.7))+
+  scale_fill_manual(values= SFHApal,
+                    name = "Region")+
+  theme_bw()+
+  annotation_scale()+
+  annotation_north_arrow(location = "tr")+ xlab(NULL)+
+  ylab(NULL)
 
+ggsave("plots/regionalwQmap.png", device = "png", width =8, height =4.5)
 
 
 #######all water quality, discrete ancd continuous ################
@@ -501,15 +520,29 @@ Allcontwqmean = Allcontwq %>%
   mutate(Source = "CDEC")
 
 save(Allcontwq, Allcontwqmean, cdecstations, file = "ContinuousWQ.RData")
-load("ContinuousWQ.RData")
+load("data/ContinuousWQ.RData")
+
+
 
 #how much data by year and station?
 
-WQdatasummary = group_by(Allcontwqmean, StationID, Year, Parameter) %>%
-  summarize(n = n()) 
+WQdatasummary = group_by(Allcontwqmean, StationID, Year, Parameter, Region) %>%
+  summarize(n = n())  %>%
+  mutate(BigRegion = case_match(Region, c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun Bay",
+                               "NW Suisun"~ "Grizzly Bay",
+                               c("Confluence", "Lower Sacramento River") ~ "Lower Sacramento\nRiver",
+         "Suisun Marsh" ~ "Suisun Marsh"))
 
 ggplot(WQdatasummary, aes(x = Year, y = n, fill = StationID)) + geom_col()+
   facet_wrap(~Parameter)
+
+ggplot(WQdatasummary, aes(x = Year, y = StationID, fill = Parameter)) + 
+  geom_tile(position = "dodge", color = "grey")+
+  facet_grid(BigRegion~., scales = "free_y", space = "free_y")+
+  scale_fill_manual(values = c("slategray1", "sienna", "darkblue"))+
+  theme_bw()
+
+ggsave("plots/sondetimeline.png", device = "png", width =6, height =7)
 
 #we only have turbidity from a few stations, may want to fill in with turbidity from discrete measurements
 library(discretewq)
@@ -628,7 +661,7 @@ Salwide = filter(AllWQmean2, Parameter == "salinity") %>%
   select(-Value) %>%
   pivot_wider(names_from = Region, values_from = ValueImputed)
 
-save(AllWQmean2, Tempx2, Turbx2, file = "WaterQuality20102024.RData")
+save(AllWQ, AllWQmean2, Tempx2, Turbx2, file = "WaterQuality20102024.RData")
 
 #####constant temperature############################################
 #constant temperature
@@ -755,19 +788,11 @@ zoopsmAvea = zoopsallm %>%
 mutate(BPUE = case_when(is.na(BPUE) & Year == 2024 & Region == "SW Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2024, Month %in% c(6:10))$BPUE),
                         is.na(BPUE) & Year == 2015 & Region == "NE Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2015, Month == 9)$BPUE),
                         is.na(BPUE) & Year == 2019 & Region == "NE Suisun" ~ mean(filter(zoopsallm, Region == "NW Suisun", Year == 2019, Month == 10)$BPUE),
-                         TRUE ~ BPUE)) %>%
-  filter(Month %in% c(6:10))
-
-test = filter(zoopsmAve, Month ==6 & Year ==2024)
-
-zoopsmAvea = filter(zoopsmAvea, !Date  %in% test$Date)
-
-#I don't have june data for 2024 yet, so I"m going to use the 2023 data and hope it works.
-zoops02023jun = filter(zoopsmAvea, Month ==7, Year ==2024, Date != ymd("2024-07-31")) %>%
-  mutate(Month = 6, Date = Date - 30)
+                         TRUE ~ BPUE))
 
 
-zoopsmAve = bind_rows(zoopsmAvea, zoops02023jun)%>%
+
+zoopsmAve = zoopsmAvea %>%
   pivot_wider(id_cols = c(Region,  Date, Month, doy,  Year),
               names_from = IBMR, values_from = BPUE) %>%
   select(Region,  Date, Month, doy,  Year,
@@ -865,7 +890,7 @@ PD.mn.array_constant = zoopx2_constant #days by prey by strata by year!
 
 
 
-save(zoops_constant,zoopsmwidef_constant , zoopx2_constant, file = "zoopsmwide_constant.RData")
+save(zoops_constant,zoopsmwidef_constant , zoopx2_constant, file = "data/zoopsmwide_constant.RData")
 
 ########################################
 #waer qulity summaries

@@ -269,7 +269,7 @@ totagrowth = sfhasummary %>%
 ggplot(totagrowth, aes(x = Scenario, y = Length, group = Year, fill = Scenario)) + 
   geom_col(aes(alpha = Year), position = "dodge", color = "grey")+
   scale_alpha_manual(values = c(0.6, 1))+
-  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(52, 70))+
+  facet_wrap(~Stratum)+ coord_cartesian(ylim = c(0, 62))+
   geom_errorbar(aes(ymin = Length - sdLength, ymax = Length+sdLength), position = "dodge")+
   theme(axis.text.x = element_text(angle = 90))
 
@@ -279,7 +279,12 @@ ggplot(totagrowth, aes(x = Scenario, y = Weight, group = Year, fill = Scenario))
   scale_alpha_manual(values = c(0.6, 1))+
   facet_wrap(~Stratum)+ #coord_cartesian(ylim = c(1, 3))+
   geom_errorbar(aes(ymin = Weight - sdWeight, ymax = Weight+sdWeight), position = "dodge")+
-  theme(axis.text.x = element_text(angle = 90))
+  theme_bw()+
+  scale_fill_discrete(guide = NULL)+
+  ylab("Predicted Weigth \non Oct 31st (g)")+
+  theme(axis.text.x = element_text(angle = 90), legend.position = "bottom")
+
+ggsave("plots/SummerWeightsRegional.png", device = "png", width =8, height =7)
 
 #oof, why is suisun marsh now so low?
 
@@ -320,7 +325,7 @@ ggplot(totagrowth_month, aes(x = Scenario, y = NewGrowth, color = Year)) +
 ###############################################################################################
 #OK, now I need to add the salinities and calculate the growth rate in the 
 #areas where salinity is <6
-
+load("data/salsummary.RData")
 #combine both salinity files
 salsummary = bind_rows(sal2016 %>%
   mutate(DOY = yday(Date), Year = "2016") %>%
@@ -408,7 +413,9 @@ meangrowth = group_by(test2x, Year, Scenario) %>%
                                                 "10800-60d", "10800-b", "15000-3-m", "15000-60d",
                                                 "15000-b", "21000")))
 
-write.csv(meangrowth, "outputs/meangrowth_summeractions.csv")
+#write.csv(meangrowth, "outputs/meangrowth_summeractions.csv")
+#meangrowth = read_csv("outputs/meangrowth_summeractions.csv") %>%
+#  mutate(Year = as.factor(Year))
 
 ggplot(meangrowth, aes(x = Scenario, y = total, fill = Scenario, group = Year)) + 
   geom_col(aes(alpha = Year), position = "dodge")+
@@ -489,3 +496,75 @@ ggplot(suisun, aes(x = Day, y = Length, color = Scenario)) + geom_line()+
   scale_color_brewer(palette = "Set3")
 
 
+
+#################################error bars#################
+
+growthwerrror = bind_rows(mutate(sfharun, Year = "2016"), mutate(sfharun2024, Year = "2024")) %>%
+  group_by(s, Stratum, Scenario, Year) %>%
+  arrange(Day) %>%
+  mutate(lagweight = dplyr::lag(Weight),
+         DOY = Day +153, #convert "day" to "Day of year"
+         Growth = (Weight-lagweight)/Weight,
+         Growth2 = (Weight-lagweight)) %>% #grwoth rate g/g/day
+  ungroup() %>%
+  left_join(salsummary) %>%
+  mutate(Good = case_when(Salinity <= 6 ~ TRUE,
+                          TRUE ~ FALSE)) %>% #new variable to say whether salinity was <6
+  filter(Good, Day !=0) %>% 
+  group_by(Scenario, Day, s, Year) %>% 
+  summarize(growth2 = mean(Growth2, na.rm =T),
+            growth = mean(Growth, na.rm =T)) %>% #mean mass-specific grwoth rate in areas where salinity was <6
+  group_by(Scenario, s, Year) %>%
+  mutate(Weight = case_when(Day ==1 ~0.07329784)) %>% #starting weight was 0.07 (used in next step)
+  ungroup()
+
+
+#now apply the function to the growth rate data
+tester = growthwerrror %>%
+  group_by(Scenario,  s, Year) %>%
+  do(Weight = growing(.))
+
+testxer = growthwerrror %>%
+  group_by(Scenario,  s, Year) %>%
+  do(Weight = growing2(.))
+
+#that didn't come out like i intended, this hould fix it.
+test2er = bind_rows(tester$Weight)
+test2xer= bind_rows(testxer$Weight) %>%
+  rename(Weight2 = Weight) %>%
+  left_join(test2er)
+#plot the results
+ggplot(test2xer, aes(x = Day, y = growth, color = Scenario))+
+  facet_wrap(~Year)+
+  geom_point() + ylab("Growth Rate g/g/day")
+
+GrowthError = group_by(test2xer, Scenario, Day, Year) %>%
+  summarize(L95 = quantile(Weight2, 0.025), U95 = quantile(Weight2, 0.975),
+            growth = mean(growth), growth2 = mean(growth2), Weight = mean(Weight), Weight2 = mean(Weight2)) %>%
+  mutate(Scenario = factor(Scenario, levels = c("Noaction", "fallx2", "10800-3-m", "10800-60d", "10800-b",
+                                                "15000-3-m", "15000-60d", "15000-b", "21000")))
+
+
+ggplot(GrowthError, aes(x = Day, y = Weight2, color = Scenario, fill = Scenario))+
+  geom_ribbon(aes(ymin = L95, ymax = U95), alpha = 0.2)+
+  facet_wrap(~Year)+
+  geom_line(linewidth =1) + ylab("Weight(g)")+ xlab("Day of Year")+
+  scale_x_continuous(breaks = c(0,30,61, 92, 122, 153), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))+
+  theme_bw()
+
+ggsave("plots/SummerFlowGrowth.png", device = "png", width =8, height =6)
+
+Growthtotal = filter(GrowthError, Day == 151)
+
+write.csv(Growthtotal, "outputs/TotalSummerGrowth.csv")
+
+#final plot for memo
+ggplot(Growthtotal, aes(x = Scenario, y = Weight2, fill = Scenario, alpha = Year))+
+  geom_col(position = "dodge")+
+  geom_errorbar(aes(ymin = L95, ymax = U95, group = Year), position = "dodge")+
+  scale_fill_discrete(guide = NULL)+
+  scale_alpha_manual(values = c(0.8, 1))+
+  ylab("Predicted weight on Oct 30th (g)")+
+  theme_bw()+ theme(axis.text.x = element_text(angle = 45, hjust =1, vjust =1))
+
+ggsave("plots/SummerFlowWeigth.png", device = "png", width =7, height =5)

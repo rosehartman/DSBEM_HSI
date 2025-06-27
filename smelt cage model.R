@@ -44,7 +44,8 @@ start.Wt <- read_excel("data/19-24 Cage Growth Pre Measures.xlsx")
 fishbio = read_csv("jim-breck-FB4-3f95480/Parameters_official.csv") %>%
   select(Family, Order, RTO, RTM, RTL, RK1, RK4, RK5, ACT, BACT)
 
-ACT = 1
+
+
 BACT = mean(filter(fishbio, BACT !=0)$BACT)
 RK4 = mean(filter(fishbio, RK4 !=0)$RK4)
 RTO <- 0.0196 # Hewett and Johnson 1992 via Whitledge and Hayward 1997 
@@ -53,6 +54,14 @@ RTL <- 25
 RK1 <- 1 # Hewett and Johnson 1992 via Whitledge and Hayward 1997 
 ACT <- 1
 SDA <- 0.175 # Rose et al. 2013 
+
+#ok, now try some different versions of activity coefficients.
+BACT2 = max(filter(fishbio, BACT !=0)$BACT)
+BACT3 = min(filter(fishbio, BACT !=0)$BACT)
+RK4a = max(filter(fishbio, RK4 !=0)$RK4)
+RK4b = min(filter(fishbio, RK4 !=0)$RK4)
+ACT2 = max(filter(fishbio, ACT !=0)$ACT)
+ACT3 = min(filter(fishbio, ACT !=0)$ACT)
 
 
 # bioenergetics model parameters, given by Rose et al. 2013a
@@ -137,6 +146,7 @@ load("data/cagezoops_byyear.Rdata")
 load("data/cagezoops_byyearfmwt.Rdata")
 load("data/CDEC_wide_cages.RData")
 beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
+#wait... i don't think I actually need these. Just use Smith et al's optimal things
 #this is model uncertainty
 #beta_hat <- read.table(file='BEM consumption rate project/beta_hat_IND.txt') # MC filtering coefficients
 
@@ -147,12 +157,14 @@ beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
 
 #d is days, i is strata.
 
-cagegrowth = function(PD.mn.array, CDEC_wide, start.Wt, beta_hat, speeds) {
+cagegrowth = function(PD.mn.array, CDEC_wide, start.Wt, beta_hat, speeds, ACT =1, 
+                      BACT = 0.1, RK1 = 1, RK4 = .15) {
   obs.temp.dat <- select(ungroup(CDEC_wide), Temp.BDL, Temp.RVB)
   obs.turb.dat <- select(ungroup(CDEC_wide), NTU.BDL, NTU.RVB)
   Locations = c("BDL", "RVB")
   CDEC_wide$Seq.Day = c(1:nrow(CDEC_wide))
   n.days = nrow(CDEC_wide)
+  start.L = start.Wt$FL_cm
   
   #percent maximum daylight (based on daylight during the solstacve)
   CDEC_wide$Frc.Max.Daylight = CDEC_wide$daylight/(daylength(38.15, 173)$Daylength*60)
@@ -186,17 +198,17 @@ for (s in 1:nrow(beta_hat)) {
 
 
   
-  a.c <- rep(beta_hat[s,1],5)
-  b.c <- rep(beta_hat[s,2],5)
-  T.M1 <- beta_hat[s,3]
-  R.Q <- rep(beta_hat[s,4],5)
-  min1 <- beta_hat[s,5]
+  #a.c <- rep(beta_hat[s,1],5)
+  #b.c <- rep(beta_hat[s,2],5)
+  #T.M1 <- beta_hat[s,3]
+  #R.Q <- rep(beta_hat[s,4],5)
+  #min1 <- beta_hat[s,5]
   
   # start model with length/weights as fish went into the cages
-    L[1,] <- mean(start.L$ForkLength) # all fish are mean of starting fish lengths
-    VB.L[1] <- mean(start.L$ForkLength)
-    VB.Wt[1] <- mean(start.Wt)
-    Wt[1,] <- mean(start.Wt)
+    L[1,] <- mean(start.Wt$FL_cm) # all fish are mean of starting fish lengths
+    VB.L[1] <- mean(start.Wt$FL_cm)
+    VB.Wt[1] <- mean(start.Wt$Weight_g)
+    Wt[1,] <- mean(start.Wt$Weight_g)
     delta.VB[1] <- NA
     
     for (i in 1:n.strata) { 
@@ -325,14 +337,14 @@ for (i in 1:n.strata) { # r
   
 
 cages2019 = cagegrowth(PD.mn.array = zoop19, CDEC_wide = filter(CDEC_wide, year(Date) == 2019 ), 
-                       start.Wt = as.vector(filter(start.Wt, Year == 2019)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                       start.Wt = filter(start.Wt, Year == 2019), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 View(cages2019[[2]])
 
 cages2023 = cagegrowth(PD.mn.array = zoop23, CDEC_wide = filter(CDEC_wide, year(Date) == 2023 ), 
-                       start.Wt = as.vector(filter(start.Wt, Year == 2023)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                       start.Wt = filter(start.Wt, Year == 2023), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 cages2024 = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                       start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                       start.Wt = filter(start.Wt, Year == 2024), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 
 allcages = bind_rows(mutate(cages2019[[1]], Year = "2019"), mutate(cages2023[[1]], Year = "2023"),
@@ -344,6 +356,8 @@ allparams = bind_rows(mutate(cages2019[[2]], Year = "2019"), mutate(cages2023[[2
 
 all.Wtlong =  pivot_longer(allcages, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
   filter(!is.na(Weight))
+
+save(cages2019, cages2023, cages2024, allcages, allparams, all.Wtlong, file = "outputs/cagebioenergetics.RData")
 
 ggplot(allparams, aes(x = Day, y = Consumption, color = Location)) +
   geom_smooth()+
@@ -366,7 +380,8 @@ ggplot(allparams, aes(x = Day, y = Turbeffect, color = Location)) +
 
 ggplot(all.Wtlong, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Year, scales = "free_y")+ geom_smooth()+
   ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_color_manual(values = c("#f46d43", "#e3c87b"), labels = c("BDL", "RV"))
 
 ggsave("plots/cagegrowth.png", device = "png", width =8, height =4.5)
 
@@ -387,20 +402,20 @@ ggplot(CDEC_wide, aes(x = Date, y = NTU.BDL)) + geom_line()+
 #####different speeds################################################################
 
 cages2024a = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
                         beta_hat = beta_hat[1:200,], speeds = c(.1,0))
 cages2024b = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
                         beta_hat = beta_hat[1:200,], speeds = c(0.25,0))
 cages2024c = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
                         beta_hat = beta_hat[1:200,], speeds = c(1,0))
 
 cages2024d = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
                         beta_hat = beta_hat[1:200,], speeds = c(.5,0))
 cages2024e = cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                        start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
                         beta_hat = beta_hat[1:200,], speeds = c(.75,0))
 
 
@@ -416,6 +431,7 @@ allcagesspeed = bind_rows(mutate(cages2024[[1]], Speed = "1"),
 all.Wtsp =  pivot_longer(allcagesspeed, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
   filter(!is.na(Weight))
 
+save(allcagesspeed, all.Wtsp,cages2024a, cages2024b, cages2024c, cages2024d, cages2024e, file = "outputs/cagesspeeds.RData")
 
 ggplot(all.Wtsp, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Speed)+ geom_smooth()#+
 #geom_point(alpha = 0.2)
@@ -438,13 +454,13 @@ ggsave("plots/cagegrowthspeed.png", device = "png", width =4.5, height =4.5)
 
 
 cages2019fmwt = cagegrowth(PD.mn.array = zoop19fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2019 ), 
-                           start.Wt = as.vector(filter(start.Wt, Year == 2019)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                           start.Wt = filter(start.Wt, Year == 2019), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 cages2023fmwt = cagegrowth(PD.mn.array = zoop23fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2023 ), 
-                           start.Wt = as.vector(filter(start.Wt, Year == 2023)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                           start.Wt = filter(start.Wt, Year == 2023), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 cages2024fmwt = cagegrowth(PD.mn.array = zoop24fmwt, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
-                           start.Wt = as.vector(filter(start.Wt, Year == 2024)$Weight_g), beta_hat = beta_hat[1:200,], speeds = c(0,0))
+                           start.Wt = filter(start.Wt, Year == 2024), beta_hat = beta_hat[1:200,], speeds = c(0,0))
 
 
 allcagesfmwt = bind_rows(mutate(cages2019fmwt[[1]], Year = "2019"), mutate(cages2023fmwt[[1]], Year = "2023"),
@@ -457,11 +473,14 @@ allparamsfmwt = bind_rows(mutate(cages2019fmwt[[2]], Year = "2019"), mutate(cage
 all.Wtlongfmwt =  pivot_longer(allcagesfmwt, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
   filter(!is.na(Weight))
 
+save(cages2019fmwt, cages2024fmwt, cages2023fmwt, allcagesfmwt, allparamsfmwt, all.Wtlongfmwt, file = "outputs/cagesFMWT.RData")
 
 ggplot(all.Wtlongfmwt, aes(x = Day, y = Weight, color = Location)) + 
   facet_wrap(~Year,scales = "free_y")+ geom_smooth()+
 ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom")+
+  scale_color_manual(values = c("#f46d43", "#e3c87b"), labels = c("BDL", "RV"))
+
 
 ggsave("plots/cagegrowthfmwt.png", device = "png", width =8, height =4.5)
 
@@ -541,3 +560,22 @@ actuallenghts %>%
   summarize(meanweight = mean(Weight),  weight_max = max(Weight),
             weight_min = min(Weight),meanlength = mean(ForkLength), FLmax = max(ForkLength), FLmin = min(ForkLength))
 
+####different activity parameters ####################
+
+
+cages2024_ACT= cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                        start.Wt = filter(start.Wt, Year == 2024), 
+                        beta_hat = beta_hat[1:200,], speeds = c(.1,0), ACT = ACT2)
+
+cages2024_BACT2= cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                          start.Wt = filter(start.Wt, Year == 2024), 
+                          beta_hat = beta_hat[1:200,], speeds = c(.1,0), ACT = 1, BACT = BACT2)
+
+cages2024_BACT3= cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, year(Date) == 2024 ), 
+                           start.Wt = filter(start.Wt, Year == 2024), 
+                           beta_hat = beta_hat[1:200,], speeds = c(.1,0), ACT = 1, BACT = BACT3)
+
+
+##########no, let's do this right ############
+#and the set of ̂βk, that minimized the sum of squared residuals
+#(bioenergetics- model- predicted October weights minus observed weights) was identified as the optimal ̂βk.

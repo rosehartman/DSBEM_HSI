@@ -648,10 +648,14 @@ write.csv(pseudoSuisun, "outputs/pseudoSuisun.csv")
 ggplot(pseudoSuisun, aes(x = Scenario, y = MeanBiomass, fill = Scenario, group = Year))+ geom_col(position = "dodge", color = "grey", aes(alpha = Year))+
   scale_alpha_manual(values = c(0.6, 1))+
   facet_wrap(~BigRegion)+scale_y_log10()+
+  scale_fill_discrete(guide = NULL)+
   geom_errorbar(aes(ymin = MeanL95, ymax = MeanU95), position = "dodge")+
-  theme(axis.text.x = element_text(angle = 90))+
-  ylab("Mean summer Pseudodiaptomus biomass")
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 90, hjust =1, vjust = 0.5),
+        legend.position = "bottom")+
+  ylab("Mean summer Pseudodiaptomus \nbiomass (ug/m3)")
 
+ggsave("plots/SummerPseudoBiomass.png", device = "png", width =8, height =6)
 
 ```
 

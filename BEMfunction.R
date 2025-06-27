@@ -38,7 +38,7 @@ for (s in 1:nrow(beta_hat)) {
   
   
   # start model
-  #FIguring outthe June 1st starting length is prety iffy if you 
+  #
   for (h in 2:n.yrs) { # year
     L[1,,h] <- start.L[h] # June start
     VB.L[1,h] <- start.L[h] #  1st value is 2017-2020 mean

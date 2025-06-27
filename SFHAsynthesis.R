@@ -169,7 +169,6 @@ summary(sfharun)
 ggplot(sfharun, aes(x = Day, y = Weight, color = Stratum))+
   facet_wrap(~Year)+
   geom_smooth()
-#something is screwy here. Missing some data and probably have it assigned to the wrong years. SIgh. 
 
 ggplot(sfharun, aes(x = Day, y = Length, color = as.factor(Year)))+
   facet_wrap(~Stratum)+
@@ -319,10 +318,6 @@ ggplot(Meangrowth6a, aes(x = Day, y = Weight,color = as.factor(Year))) +
 ggsave("plots/sfha_growthlessthan6_baseline.png", device = "png", width =5, height = 4)
 
 ggplot(Meangrowth6a, aes(x = Day, y = Growth,color = as.factor(Year))) + geom_line()
-#why did my results change so much with th enew data?
-
-
-#Does this make sense? need to check with the group. 
 
 Meangrowthsum = Meangrowth6a %>%
   group_by(Year) %>%
@@ -332,11 +327,16 @@ Meangrowthsum = Meangrowth6a %>%
 
 #x2 versus growth 6 psu
 ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth(method = "lm")+
-  geom_text(aes(label = Year))
+  geom_text(aes(label = Year))+
+  theme_bw()+
+  ylab("Potential weight at end of October (g)")+
+  xlab("Average summer/fall X2 location (km)")
 
-x2lm6 = lm(Weight ~ X2, Meangrowthsum)
+ggsave("plots/WeightVX2.png", device = "png", width = 5, height =3.5)
+
+x2lm6 = lm(Weight ~ X2, filter(Meangrowthsum, Year != 2024))
 summary(x2lm6)
-#Nope.
+#very slightly significant
 
 ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth()+
   geom_text(aes(label = Year))
@@ -344,8 +344,15 @@ ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth()+
 
 
 ggplot(Meangrowthsum, aes(x = Temperature, y = Weight)) + geom_point()+ geom_smooth(method = "lm")+
-  geom_text(aes(label = Year))
+  geom_text(aes(label = Year))+
+  theme_bw()+
+  ylab("Potential weight at end of October (g)")+
+  xlab("Average summer/fall water temperature (C)")
 
+ggsave("plots/WeightVTemp.png", device = "png", width = 5, height =3.5)
+
+Templm6 = lm(Weight ~ Temperature, filter(Meangrowthsum, Year != 2024))
+summary(Templm6)
 
 #x2 versus growth 2 psu
 #ggplot(Meangrowthsum, aes(x = X2, y = Weight2)) + geom_point()+ geom_smooth(method = "lm")+
@@ -452,3 +459,173 @@ ggplot(Meangrowth6azoops, aes(x = Day, y = Weight, color = as.factor(Year)))+
   ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()
 
 
+
+########only change zoops##################################################
+
+sfharun_zoops = smelt_bioenergetics(PD.mn.array = zoopx2, obs.temp.dat = Tempx2_constant, 
+                                    obs.turb.dat = turbx2_constant, 
+                                    start.L = rep(23, 15), ex.strata = ex.strata, 
+                                    beta_hat = beta_hat[1:200,], start.year = 2010)
+
+ggplot(sfharun_zoops, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  facet_wrap(~Stratum) + geom_smooth()
+
+
+Wt.summary_zoops = sfharun_zoops %>%
+  rename(Region = Stratum) %>%
+  group_by(Region, Year, Day) %>%
+  summarize(MWeight = mean(Weight, na.rm =T), sdWeight = sd(Weight, na.rm =T),
+            MLength = mean(Length, na.rm =T), sdLength = sd(Length, na.rm =T)) 
+
+
+Wt.summary_zoops = left_join(Wt.summary_zoops, sal) %>%
+  left_join(DF)
+
+ggplot(Wt.summary_zoops, aes(x = Day, y = MWeight, color = as.factor(Year)))+
+  facet_wrap(~Region) + geom_line()
+
+#growth in less than 6 PSU
+Wtsalzoops = sfharun_zoops %>%
+  rename(Region = Stratum) %>%
+  group_by(s, Region, Year) %>%
+  arrange(Day) %>%
+  mutate(gpergperd = (Weight -lag(Weight))/lag(Weight),
+         gpergperd = replace_na(gpergperd, 0)) %>%
+  ungroup() %>%
+  left_join(salx)
+
+
+
+
+Meangrowth6azoops = Wtsalzoops %>%
+  group_by(Year, Day) %>%
+  filter(GoodSalinity) %>%
+  summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
+  group_by(Year) %>%
+  mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
+  ungroup()
+
+ggplot(Meangrowth6azoops, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()
+
+
+
+########only change temperatures##################################################
+load("data/zoopsmwide_constant.RData")
+sfharun_temp = smelt_bioenergetics(PD.mn.array = zoopx2_constant, obs.temp.dat = Tempx2, 
+                                    obs.turb.dat = turbx2_constant, 
+                              start.L = rep(23, 15), ex.strata = ex.strata, 
+                              beta_hat = beta_hat[1:200,], start.year = 2010)
+
+ggplot(sfharun_temp, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  facet_wrap(~Stratum) + geom_smooth()
+
+
+Wt.summary_temp = sfharun_temp %>%
+  rename(Region = Stratum) %>%
+  group_by(Region, Year, Day) %>%
+  summarize(MWeight = mean(Weight, na.rm =T), sdWeight = sd(Weight, na.rm =T),
+            MLength = mean(Length, na.rm =T), sdLength = sd(Length, na.rm =T)) 
+
+
+Wt.summary_temp = left_join(Wt.summary_temp, sal) %>%
+  left_join(DF)
+
+ggplot(Wt.summary_temp, aes(x = Day, y = MWeight, color = as.factor(Year)))+
+  facet_wrap(~Region) + geom_line()
+
+#growth in less than 6 PSU
+Wtsaltemp = sfharun_temp %>%
+  rename(Region = Stratum) %>%
+  group_by(s, Region, Year) %>%
+  arrange(Day) %>%
+  mutate(gpergperd = (Weight -lag(Weight))/lag(Weight),
+         gpergperd = replace_na(gpergperd, 0)) %>%
+  ungroup() %>%
+  left_join(salx)
+
+
+
+
+Meangrowth6atemp = Wtsaltemp %>%
+  group_by(Year, Day) %>%
+  filter(GoodSalinity) %>%
+  summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
+  group_by(Year) %>%
+  mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
+  ungroup()
+
+ggplot(Meangrowth6atemp, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()
+
+
+########only change turbidity##################################################
+
+sfharun_turb = smelt_bioenergetics(PD.mn.array = zoopx2_constant, obs.temp.dat = Tempx2_constant, 
+                                   obs.turb.dat = Turbx2, 
+                                   start.L = rep(23, 15), ex.strata = ex.strata, 
+                                   beta_hat = beta_hat[1:200,], start.year = 2010)
+
+ggplot(sfharun_turb, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  facet_wrap(~Stratum) + geom_smooth()
+
+
+Wt.summary_turb = sfharun_turb %>%
+  rename(Region = Stratum) %>%
+  group_by(Region, Year, Day) %>%
+  summarize(MWeight = mean(Weight, na.rm =T), sdWeight = sd(Weight, na.rm =T),
+            MLength = mean(Length, na.rm =T), sdLength = sd(Length, na.rm =T)) 
+
+
+Wt.summary_turb= left_join(Wt.summary_turb, sal) %>%
+  left_join(DF)
+
+ggplot(Wt.summary_turb, aes(x = Day, y = MWeight, color = as.factor(Year)))+
+  facet_wrap(~Region) + geom_line()
+
+#growth in less than 6 PSU
+Wtsalturb = sfharun_turb %>%
+  rename(Region = Stratum) %>%
+  group_by(s, Region, Year) %>%
+  arrange(Day) %>%
+  mutate(gpergperd = (Weight -lag(Weight))/lag(Weight),
+         gpergperd = replace_na(gpergperd, 0)) %>%
+  ungroup() %>%
+  left_join(salx)
+
+
+
+
+Meangrowth6aturb = Wtsalturb %>%
+  group_by(Year, Day) %>%
+  filter(GoodSalinity) %>%
+  summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
+  group_by(Year) %>%
+  mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
+  ungroup()
+
+ggplot(Meangrowth6aturb, aes(x = Day, y = Weight, color = as.factor(Year)))+
+  geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()
+
+####put all the growth plots together ##############
+
+allgrowth = bind_rows(mutate(Meangrowth6a, Type = "Observed"),
+  mutate(Meangrowth6azoops, Type = "Zoops Only"),
+                      mutate(Meangrowth6atemp, Type = "Temp Only"),
+                      mutate(Meangrowth6aturb, Type = "Turb Only"))
+
+ggplot(allgrowth, aes(x = Day, y = Weight, color = as.factor(Year)))+
+     geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+     ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()+
+  facet_wrap(~Type)
+
+ggsave("plots/growthfactors_all.png", device = "png", width =7, height =5)
+
+allgrowthmax = group_by(allgrowth, Type, Year) %>%
+  summarize(Weight = max(Weight, na.rm =T))
+
+ggplot(allgrowthmax, aes(x = as.factor(Year), y = Weight, fill =as.factor(Year)))+
+  facet_wrap(~Type)+ geom_col()
