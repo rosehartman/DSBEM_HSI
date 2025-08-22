@@ -383,19 +383,44 @@ WQ20172024 = read_csv("data/SMSCG_wq_data_2017-2024.csv") %>%
 
 #grab the 2010-2016 data from CDEC
 library(cder)
-WQ20102016 = cdec_query(stations = unique(WQ20172024$StationID), sensors = c(100, #spc in microsemes
-                                                                           25 #temperature in degrees F
-                                                                           ),
+
+#Try it a few stations at a time
+WQ20102016_1 = cdec_query(stations = unique(WQ20172024$StationID)[1:4], sensors = c(100, #spc in microsemes
+                                                                           25, #temperature in degrees F
+                                                                           27, #Turbidity NTU
+                                                                           221), #Turbidity FNU),
                         start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
-#Hm. It looks like we have no turbidity data for that entire time period, unless something went wrong. 
 
-WQturb = cdec_query(stations = unique(WQ20172024$StationID), sensors = c(27, #Turbidity NTU
+WQ20102016_2 = cdec_query(stations = unique(WQ20172024$StationID)[5:9], sensors = c(100, #spc in microsemes
+                                                                                    25, #temperature in degrees F
+                                                                                    27, #Turbidity NTU
+                                                                                    221), #Turbidity FNU),
+                          start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
+
+WQ20102016_3 = cdec_query(stations = unique(WQ20172024$StationID)[10:14], sensors = c(100, #spc in microsemes
+                                                                                    25, #temperature in degrees F
+                                                                                    27, #Turbidity NTU
+                                                                                    221), #Turbidity FNU),
+                          start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
+#Hm. It looks like we missed turbidity on that last one. 
+
+WQturb = cdec_query(stations = unique(WQ20172024$StationID)[10:14], sensors = c(27, #Turbidity NTU
                                                                            221 #Turbidity FNU
-),
-start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
-#OK, never mind, we just didn't get all the data!
+),start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
+#NOpe, it's just not there.
+
+chlcdec = cdec_query(stations = unique(WQ20172024$StationID)[1:4], sensors = 28, #chlorophyll
+                     start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
 
 
+chlcdec2 = cdec_query(stations = unique(WQ20172024$StationID)[5:10], sensors = 28, #chlorophyll
+                     start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
+
+
+
+chlcdec3 = cdec_query(stations = unique(WQ20172024$StationID)[11:14], sensors = 28, #chlorophyll
+                      start.date = ymd("2010-01-01"), end.date = ymd("2016-12-31"))
+chlcdecall = bind_rows(chlcdec, chlcdec2, chlcdec3)
 
 #We don't have any data from the SW suisun region, so I"m going to pull MRZ
 #we might as well grab PCT and ANH to improve our data in those regions too. 
@@ -417,7 +442,7 @@ EMM = cdec_query(c("EMM", "SDI"), sensors = c(100, #spc in microsemes
                                                            27, #Turbidity NTU
                                                            221), #Turbidity FNU),
                        start.date = ymd("2010-01-01"), end.date = ymd("2024-12-31"))
-WQ20102016a = bind_rows(WQ20102016, WQturb, extradata1)
+WQ20102016a = bind_rows(WQ20102016_1,WQ20102016_2, WQ20102016_3, EMM, WQturb, extradata1)
 #filter out bad values, summarize by day
 summary(WQ20102016a)
 
@@ -427,17 +452,42 @@ summary(WQ20102016a)
 WQ20102016a = filter(WQ20102016a, Value >0, !is.na(Value),Value <900000, !(SensorUnits == "DEG F" & Value >82),
                      !(SensorUnits == "DEG F" & Value < 35),
                      !(SensorType == "EL COND" & Value > 55000),
-                     !(SensorUnits == "NTU" & Value >500)) %>%
+                     !(SensorUnits == "NTU" & Value >500),
+                     !(SensorType == "TURB WF" & Value >500)) %>%
   mutate(Value2 = case_when(SensorUnits == "DEG F" ~ (Value-32)*5/9,
                             SensorUnits == "uS/cm" ~ ec2pss(Value/1000, 25),
                             TRUE ~ Value),
-         Parameter = recode(SensorType, "EL COND" = "salinity", 
+         Parameter = recode(SensorType, "EL COND" = "salinity", "TURB WF" = "turbidity",
                             "TEMP W" = "watertemperature", "TURB W" = "turbidity")) %>%
   select(StationID, ObsDate, Parameter, Value2) %>%
   rename(Value = Value2)
 
 ggplot(WQ20102016a, aes(x = ObsDate, y = Value, color = StationID))+geom_line()+
   facet_wrap(~Parameter, scales = "free_y", nrow =3)
+
+#huh, something's weird with EMM
+
+ggplot(filter(WQ20102016a,StationID == "EMM"), aes(x = ObsDate, y = Value, color = StationID))+geom_line()+
+  facet_wrap(~Parameter, scales = "free_y", nrow =3)
+#temperature is definitely wrong for 2024.
+
+WQ20102016a = filter(WQ20102016a, !(ObsDate > ymd("2024-01-01") & StationID == "EMM"))
+
+ggplot(filter(WQ20102016a,StationID == "SDI"),  aes(x = ObsDate, y = Value, color = StationID))+geom_line()+
+  facet_wrap(~Parameter, scales = "free_y", nrow =3)
+#Issues with the last year of data, i'll just cut it
+
+WQ20102016a = filter(WQ20102016a, !(year(ObsDate) > 2020 & StationID == "SDI"))
+
+
+ggplot(filter(WQ20102016a,StationID == "ANH", year(ObsDate) %in% c(2010:2010)), aes(x = ObsDate, y = Value, color = StationID))+geom_line()+
+  facet_wrap(~Parameter, scales = "free_y", nrow =3)
+#something crazy happened to turbidiyt in August and september of 2010
+
+WQ20102016a = filter(WQ20102016a, !( ObsDate < ymd("2010-10-05") & ObsDate > ymd("2010-8-15")& StationID == "ANH" & Parameter == "turbidity"))
+
+
+
 
 #now I just need to add the regions. Sigh. 
 cdecstations = read_csv("data/station_data.csv") %>%
@@ -520,9 +570,23 @@ Allcontwqmean = Allcontwq %>%
   mutate(Source = "CDEC")
 
 save(Allcontwq, Allcontwqmean, cdecstations, file = "ContinuousWQ.RData")
-load("data/ContinuousWQ.RData")
+load("ContinuousWQ.RData")
+
+#what's up with that high temperature peak in 2017?
+grizz = filter(Allcontwq, StationID %in% c("GZL", "GZB"), Year ==2017, Parameter == "watertemperature", Month %in% c(6,7))
+
+ggplot(grizz, aes(x = Date , y = Value))+ geom_point()
+
+BDLtest = filter(Allcontwq, StationID %in% c("BDL"), Year ==2017, Parameter == "watertemperature", Month %in% c(6,7))
+
+ggplot(BDLtest, aes(x = Date , y = Value))+ geom_point()
+
+June15_20 = filter(Allcontwq, StationID %in% c("GZL", "GZB", "BDL", "HUN", "NSL", "GOD"), Year ==2017, Parameter == "watertemperature", DOY %in% c(165:175)) 
 
 
+ggplot(June15_20, aes(x = Date , y = Value))+ geom_point()+
+  facet_wrap(~StationID)
+#Same temperature spike at HUN too. St range, but probably real?
 
 #how much data by year and station?
 
@@ -531,18 +595,61 @@ WQdatasummary = group_by(Allcontwqmean, StationID, Year, Parameter, Region) %>%
   mutate(BigRegion = case_match(Region, c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun Bay",
                                "NW Suisun"~ "Grizzly Bay",
                                c("Confluence", "Lower Sacramento River") ~ "Lower Sacramento\nRiver",
-         "Suisun Marsh" ~ "Suisun Marsh"))
+         "Suisun Marsh" ~ "Suisun Marsh"))%>%
+  pivot_wider(names_from = Parameter, values_from = n, values_fill = 0) %>%
+  pivot_longer(cols = c(salinity, watertemperature, turbidity), names_to = "Parameter", values_to = "n")
 
 ggplot(WQdatasummary, aes(x = Year, y = n, fill = StationID)) + geom_col()+
   facet_wrap(~Parameter)
 
-ggplot(WQdatasummary, aes(x = Year, y = StationID, fill = Parameter)) + 
-  geom_tile(position = "dodge", color = "grey")+
+ggplot(WQdatasummary, aes(x = Year, y = StationID, fill = Parameter, alpha = n)) + 
+  geom_tile(position = "dodge", color = "grey20")+
   facet_grid(BigRegion~., scales = "free_y", space = "free_y")+
-  scale_fill_manual(values = c("slategray1", "sienna", "darkblue"))+
+  scale_fill_manual(values = c("salinity" = "cyan4", "watertemperature" = "darkblue", "turbidity" = "darkorange"))+
+  scale_alpha_binned(breaks = c(1,100,200, 300), range = c(0,1), name = "Number of \nSamples")+
   theme_bw()
 
 ggsave("plots/sondetimeline.png", device = "png", width =6, height =7)
+
+recappalette = c("BY2024 1" = "yellow", "BY2024 2" = "blue", "BY2024 3" = "green4", "BY2024 4" = "purple",
+                 "BY2024 5" = "tan", "BY2024 6" = "cyan", "BY2024 6" = "red2")
+
+
+####chlorophyll timeline########
+
+chlcdecalla = filter(chlcdecall, Value >0, !is.na(Value),Value <900000) %>%
+  select(StationID, ObsDate, Value)  %>%
+  mutate(Date = date(ObsDate)) %>%
+  group_by(StationID, Date) %>%
+  summarise(Chl = mean(Value, na.rm =T)) %>%
+  mutate(Year = year(Date),
+         region = case_match(StationID, c("SSI", "RVB", "MAL") ~ "River",
+                             c("HON", "GZL", "RYC") ~ "Bay"))
+  
+
+chl20172024 = read_csv("data/SMSCG_wq_data_2017-2024.csv") %>%
+  rename(StationID = station) %>%
+  mutate(Date = date(date_time_pst), Year = year(Date)) %>%
+  select(Year, StationID, Date, fluorescence, region) 
+
+chlmean = group_by(chl20172024, StationID, Date, region, Year) %>%
+  summarize(Chl = mean(fluorescence, na.rm =T)) %>%
+  bind_rows(chlcdecalla)
+
+save(chlmean, file = "data/chlmean.RData")
+
+chlsummary = group_by(chlmean, StationID, Year, region) %>%
+  summarize(n = n()) 
+
+ggplot(chlsummary, aes(x = Year, y = StationID,  alpha = n)) + 
+  geom_tile(position = "dodge", color = "grey20", fill = "green4")+
+  facet_grid(region~., scales = "free_y", space = "free_y")+
+  scale_alpha_binned(breaks = c(1,100,200, 300), range = c(0,1), name = "Number of \nSamples")+
+  theme_bw()
+
+ggsave("plots/chltimeline.png", device = "png", width =6, height =7)
+
+
 
 #we only have turbidity from a few stations, may want to fill in with turbidity from discrete measurements
 library(discretewq)
@@ -767,6 +874,8 @@ Regions = deltamapr::R_DSIBM %>%
 #put it in the right format for the model
 #order of taxa is: limno, othcaljuv, pdiapjuv, othcalad, acartela, othflad, allcopnaup, daphnia, othcyc, other, eurytem, pdipfor
 
+test = pivot_wider(zoopsallm, id_cols = c(SampleID, Station, SalSurf, Date, Year, Region, Month),
+                   names_from = IBMR, values_from = BPUE)
 
 load("data/sfhazoops.RData")
 zoopsallm = mutate(sfhazoops, BPUE = BPUE/1000) #convert to mg
@@ -824,23 +933,23 @@ ggplot(zoopsmAve,
 
 #I don't have any data from SW suisun ffor 2024. I'm going to copy the NW suisun data. 
 
-zoopsmwidef = filter(zoopsmAve, doy %in% c(153:305))%>%
+zoopsmwide = filter(zoopsmAve, doy %in% c(153:305))%>%
   arrange(Region)
 
-summary(zoopsmwidef)
+summary(zoopsmwide)
 arg = filter(zoopsmwidef, is.na(pdiapfor))
 anyNA(zoopsmwidef)
-#also missing June of 2024. NOt sure we can do much about that.
+#also missing June of 2024 in SW suisun. NOt sure we can do much about that.
 
-summaryzoop = group_by(zoopsmwidef, Year, Region) %>%
+summaryzoop = group_by(zoopsmwide, Year, Region) %>%
   summarize(n())
 
-test = zoopsmwidef %>%
+test = zoopsmwide %>%
     split(list(zoopsmwidef$Region, zoopsmwidef$Year))
 
 zoop = array(unlist(test),dim=c(153,18,7, 15), 
-             dimnames = list(c(153:305), names(zoopsmwidef), unique(zoopsmwidef$Region),
-                                                              unique(zoopsmwidef$Year)))
+             dimnames = list(c(153:305), names(zoopsmwide), unique(zoopsmwide$Region),
+                                                              unique(zoopsmwide$Year)))
   
 
 #OK! Now i just need to get rid of the id columns
@@ -924,6 +1033,18 @@ Meantemps6 = AllWQmean2 %>%
   summarize(Temperature = mean(Temperature, na.rm = T))
 
 
+Meantemps6b = AllWQmean2 %>%
+  pivot_wider(id_cols = c(DOY, Date, Region, Year, Month), names_from = Parameter,
+              values_from = ValueImputed) %>%
+  filter(salinity <6) %>%
+  group_by(Year, Month, DOY) %>%
+  summarize(Temperature = mean(watertemperature)) %>%
+  filter(Month %in% c(6:10)) %>%
+  mutate(Season = case_when(Month %in% c(6:8) ~ "summer",
+                            Month %in% c(9,10) ~ "fall")) %>%
+  group_by(Year, Season) %>%
+  summarize(Temperature = mean(Temperature, na.rm = T))
+
 Meantemps2 = AllWQmean2 %>%
   pivot_wider(id_cols = c(DOY, Date, Region, Year, Month), names_from = Parameter,
               values_from = ValueImputed) %>%
@@ -954,7 +1075,7 @@ DF = Dayflow %>%
   group_by(Year) %>%
   summarize(X2 = mean(X2, na.rm =T))
 
-save(DF, Meantemps_nosalt, Meantemps2, Meantemps6, file = "data/DF.RData")
+save(DF, Meantemps_nosalt, Meantemps2, Meantemps6, Meantemps6b, file = "data/DF.RData")
 
 #################################zoops time series ####################
 library(RColorBrewer)

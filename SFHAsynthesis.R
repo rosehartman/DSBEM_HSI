@@ -101,8 +101,8 @@ T.L <- c(28,28,27,27,27)					# Temperature at CK4 of maximum (deg C)
 CK.1 <- c(0.4,0.4,0.4,0.4,0.4)				# effect at temperature CQ
 CK.4 <- c(0.01,0.01,0.01,0.001,0.001)			# effect at temperature T.L
 T.0 <- c(17,17,20,20,20) # Temperature at 0.98 of maximum (deg C)
-T.M <- c(20,20,23,23,23) # Temperature above which things start delining. I'm bumping this down from 23 to 22
-#T.M <- c(20,20,21.6,21.6,21.6) # smith and nobriga had this at 21.6
+T.M <- 21.6 # Temperature above which things start delining.  smith and nobriga had this at 21.6
+#T.M <- c(20,20,21.6,21.6,21.6) #
 # Metabolism (R) parameters
 a.r <- c(0.0027,0.0027,0.0027,0.0027,0.0027)	# weight multiplier
 b.r <- c(-0.216,-0.216,-0.216,-0.216,-0.216)	# weight exponent
@@ -160,7 +160,7 @@ load("data/zoopsmwide.RData")
 #OK, this just fills in prey densities. I can do this with the zoop data. 
 
 sfharun = smelt_bioenergetics(PD.mn.array = zoopx2, obs.temp.dat = Tempx2, obs.turb.dat = Turbx2, 
-                    start.L = rep(23, 15), ex.strata = ex.strata, beta_hat = beta_hat[1:200,], start.year = 2010)
+                    start.L = rep(23, 15), ex.strata = ex.strata, beta_hat = beta_hat[1:20,], start.year = 2010)
 
 
 
@@ -218,8 +218,21 @@ ggplot(Wtsum2, aes(x = Region, y = diffweight, fill = Region)) + geom_col(positi
   theme(axis.text.x = element_blank())
  
 
-DFmeans = filter(DF, Month %in% c(6:9)) %>%
+ggplot(Wtsum2, aes(x = Year, y = diffweight, fill = Region)) + geom_col(position = "dodge")+
+  facet_wrap(~Region, scales = "free_x")+
+  theme(axis.text.x = element_blank())
+
+
+
+DFmeans = filter(DF, Month %in% c(6:10)) %>%
   group_by(Year) %>%
+  summarize(OUT = mean(OUT, na.rm =T), X2 = mean(X2, na.rm =T))
+
+
+DFmeans2 = filter(DF, Month %in% c(6:10)) %>%
+  mutate(Season = case_when(Month %in% c(6:8) ~ "summer",
+                             Month %in% c(9,10) ~ "fall")) %>%
+  group_by(Year, Season) %>%
   summarize(OUT = mean(OUT, na.rm =T), X2 = mean(X2, na.rm =T))
 
 Wtsum2 = left_join(Wtsum2, DFmeans)
@@ -229,7 +242,7 @@ ggplot(Wtsum2, aes(x = X2, y = diffweight)) + geom_point()+
   facet_wrap(~Region, scales = "free_x")+
 
   ylab("Predicted growth (g), June-OCtober")+
-  xlab("Mean June-September X2")
+  xlab("Mean June-October X2")
 
 x2grwothlm = lm(diffweight ~ X2*Region, data = Wtsum2)
 summary(x2grwothlm)
@@ -239,8 +252,8 @@ trends
 #OK, so maybe I don't worry about the weird things in DW suisun that much because it isn't significant
 
 
-#save(Wt.summary, sfharun, DF, Wtsum2, file = "outputs/summerflowweights.RData")
-
+save(Wt.summary, sfharun, DF, Wtsum2, file = "outputs/summerflowweights.RData")
+load("outputs/summerflowweights.RData")
 ########larger regions#############
 
 #put lower sac and confluence together, plus suisun together
@@ -277,7 +290,7 @@ ggplot(Wtsummary2, aes(x = Day, y = Weight, color = BigRegion)) + geom_line(line
 #Maybe use growth per day, distribute smelt based on where they can grow, and figure out an average?
 
 
-Wt.summary = Wt.summary %>%
+Wt.summaryX = Wt.summary %>%
   group_by(Region, Year) %>%
   mutate(WperD = MWeight - lag(MWeight),
          WperD = replace_na(WperD, 0)) %>%
@@ -285,7 +298,8 @@ Wt.summary = Wt.summary %>%
 
 #I should use the full dataset and get the varience. Somehow. 
 #also weight gain should be g/g.
-salx = select(sal, Region2, Day, Year, GoodSalinity) %>%
+salx = ungroup(sal) %>%
+  select(Region2, Day, Year, GoodSalinity) %>%
   distinct()
 Wtsal = sfharun %>%
   rename(Region = Stratum) %>%
@@ -300,30 +314,79 @@ Wtsal = sfharun %>%
 
 
 Meangrowth6a = Wtsal %>%
-  group_by(Year, Day) %>%
+  group_by(Year, Day, s) %>%
   filter(GoodSalinity) %>%
   summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
-  group_by(Year) %>%
+  group_by(Year, s) %>%
   mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
   ungroup()
 
+Meangrowth6b = group_by(Meangrowth6a, Year, Day) %>%
+  summarise(Growth = mean(Growth), Weight = mean(Weight))
 
-
-ggplot(Meangrowth6a, aes(x = Day, y = Weight,color = as.factor(Year))) + 
+ggplot(Meangrowth6b, aes(x = Day, y = Weight,color = as.factor(Year))) + 
   geom_line(linewidth = 1)+
   scale_color_viridis_d(option = "turbo", name = NULL)+
   ylab("Predicted weight (g) in regions <6 PSU")+
-  theme_bw()
+  theme_bw()+
+  scale_x_continuous(breaks = c(0,30, 61, 92, 123, 150), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))
 
 ggsave("plots/sfha_growthlessthan6_baseline.png", device = "png", width =5, height = 4)
 
-ggplot(Meangrowth6a, aes(x = Day, y = Growth,color = as.factor(Year))) + geom_line()
+ggplot(Meangrowth6b, aes(x = Day, y = Growth,color = as.factor(Year))) + geom_line()
 
 Meangrowthsum = Meangrowth6a %>%
-  group_by(Year) %>%
+  group_by(Year, s) %>%
   summarise(Weight = max(Weight, na.rm =T)) %>%
+  group_by(Year) %>%
+  summarize(sdWeight = sd(Weight), Weight = mean(Weight)) %>%
   left_join( DFmeans) %>%
   left_join(Meantemps6)
+
+#seperate summer growth and fall growth to see if X2 effect differs
+Meangrowthsumfall = Meangrowth6a %>%
+  mutate(Season = case_when(Day <92 ~ "summer",
+                            TRUE ~ "fall")) %>%
+  group_by(Year, Season, s) %>%
+  summarize(Weight = max(Weight, na.rm =T)) %>%
+  group_by(Year, Season) %>% 
+  summarize(sdWeight= sd(Weight), Weight = mean(Weight)) %>%
+  arrange(Year) %>%
+  mutate(Growth = case_when(Season == "summer" ~ Weight,
+                            Season == "fall" ~ Weight-lead(Weight))) %>%
+  left_join( DFmeans2) %>%
+  left_join(Meantemps6b) %>%
+  mutate(Season = factor(Season, levels = c("summer", "fall"),
+                         labels = c("Summer (Jun-Aug)", "Fall (Sep-Oct)")))
+
+ggplot(Meangrowthsumfall, aes(x = X2, y = Growth)) + geom_point()+ geom_smooth(method = "lm")+
+  geom_text(aes(label = Year))+
+  facet_wrap(~Season)+
+  ylab("bioenergetic estimate of growth")+
+  xlab("Mean seasonal X2")+
+  theme_bw()
+
+ggplot(Meangrowthsumfall, aes(x = Temperature, y = Growth)) + geom_point()+ geom_smooth(method = "lm")+
+  geom_text(aes(label = Year))+
+  facet_wrap(~Season, scales = "free")+
+  ylab("bioenergetic estimate of growth")+
+  xlab("Mean seasonal water temperature")+
+  theme_bw()
+
+ggplot(filter(Meangrowthsumfall, Year !=2024), aes(x = X2, y = Growth)) + geom_point()+ geom_smooth(method = "lm")+
+  geom_text(aes(label = Year))+
+  facet_wrap(~Season, scales = "free")+
+  ylab("bioenergetic estimate of growth")+
+  xlab("X2")+
+  theme_bw()
+
+
+ggplot(Meangrowthsumfall, aes(x = Temperature, y = X2)) + geom_point()+ geom_smooth(method = "lm")+
+  geom_text(aes(label = Year))+
+  facet_wrap(~Season, scales = "free")+
+  ylab("x2")+
+  xlab("Mean seasonal water temperature")+
+  theme_bw()
 
 #x2 versus growth 6 psu
 ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth(method = "lm")+
@@ -366,6 +429,7 @@ summary(Templm6)
 #ggplot(Meangrowthsum, aes(x = Temperature, y = Weight2)) + geom_point()+ geom_smooth(method = "lm")+
 #  geom_text(aes(label = Year))
 
+write.csv(Meangrowthsum, "outputs/Meangrowthsum.csv")
 
 ########################
 #x2 versus good temperature
@@ -393,11 +457,12 @@ ggplot(tempregionmean, aes(x = Year, y = Temp, color = Region)) + geom_point()+ 
 
 ggplot(tempregionmean, aes(x = X2, y = Temp, color = Region)) + geom_point() + geom_smooth(method = "lm", se = F)
 
-library(deltamapr)
-ggplot()+
-  geom_sf(data = WW_Delta)+
-  geom_sf(data = Regions, aes(fill = Region), alpha = 0.5)+
-  coord_sf(xlim = c(-122.2, -121.6), ylim = c(38.0, 38.3))
+
+# library(deltamapr)
+# ggplot()+
+#   geom_sf(data = WW_Delta)+
+#   geom_sf(data = Regions, aes(fill = Region), alpha = 0.5)+
+#   coord_sf(xlim = c(-122.2, -121.6), ylim = c(38.0, 38.3))
 
 #zoops versus X2 by region and year and stuff
 
@@ -612,7 +677,7 @@ ggplot(Meangrowth6aturb, aes(x = Day, y = Weight, color = as.factor(Year)))+
 
 ####put all the growth plots together ##############
 
-allgrowth = bind_rows(mutate(Meangrowth6a, Type = "Observed"),
+allgrowth = bind_rows(mutate(Meangrowth6b, Type = "Observed"),
   mutate(Meangrowth6azoops, Type = "Zoops Only"),
                       mutate(Meangrowth6atemp, Type = "Temp Only"),
                       mutate(Meangrowth6aturb, Type = "Turb Only"))

@@ -174,42 +174,22 @@ cagegrowth = function(PD.mn.array, CDEC_wide, start.Wt, beta_hat, speeds, ACT =1
   day <- CDEC_wide$Seq.Day
   LT.fx <- daylength/(daylength(38.15, 173)$Daylength*60) #daylenght divided by daylength at summer solstace
   
-  all.VBL<-all.VBWt<- array(NA,dim=c(n.days,nrow(beta_hat)))
-  all.L<- data.frame(Day = NA, Montezuma = NA, RioVista = NA, s = NA)
-  all.Wt<- data.frame(Day = NA, Montezuma = NA, RioVista = NA, s = NA)
-  all.delta.BEM <- array(NA,dim=c((n.days),n.strata,nrow(beta_hat)))
-  all.delta.VB <- array(NA,dim=c((n.days),nrow(beta_hat)))
-  mn.pred.L<-mn.pred.Wt<- array(NA,dim=c((n.days+1),nrow(beta_hat)))
+  all.L<- data.frame(Day = NA, Montezuma = NA, RioVista = NA)
+  all.Wt<- data.frame(Day = NA, Montezuma = NA, RioVista = NA)
+  all.delta.BEM <- array(NA,dim=c((n.days),n.strata))
+  
   energyout = data.frame(Energy = NA, Location = NA, Day = NA)
 
-for (s in 1:nrow(beta_hat)) {
-  VB.L <- VB.Wt <- delta.VB <- array(NA,dim=c(n.days))
   FOD.fx<-TMP.fx <- NTU.fx <- Cmax1 <- realized.Cmax1 <- C <- Limno <- energy <-delta.BEM <- array(NA,dim=c(n.days,n.strata)) # day x region
   Wt <- L <- Foodsum <- array(NA,dim=c((n.days+1),n.strata)) # day x region 
   Food <- array(NA,dim=c(n.days, n.prey, n.strata)) # day x  prey typexregion  x
   
-  #logit.temp.b[1] <- runif(1,(0.43-0.25*0.43),(0.43+0.25*0.43))
-  #logit.temp.c[1] <- runif(1,(-2.7-0.25*2.47),(-2.7+0.25*2.7))
-  #logit.temp.c[2] <- runif(1,(24.44-0.25*24.44),(24.44+0.25*24.44))
-  #R.Q <- rep(runif(1,(0.036-0.25*0.036),(0.036+0.25*0.036)),5)
-  #min1 <- runif(1,(0.64-0.25*0.64),(0.64+0.25*0.64))
-  #b.turb <- runif(1,(0.1-0.25*0.1),(0.1+0.25*0.1))
-  
-
-
-  
-  #a.c <- rep(beta_hat[s,1],5)
-  #b.c <- rep(beta_hat[s,2],5)
-  #T.M1 <- beta_hat[s,3]
-  #R.Q <- rep(beta_hat[s,4],5)
-  #min1 <- beta_hat[s,5]
   
   # start model with length/weights as fish went into the cages
     L[1,] <- mean(start.Wt$FL_cm) # all fish are mean of starting fish lengths
-    VB.L[1] <- mean(start.Wt$FL_cm)
-    VB.Wt[1] <- mean(start.Wt$Weight_g)
+
     Wt[1,] <- mean(start.Wt$Weight_g)
-    delta.VB[1] <- NA
+
     
     for (i in 1:n.strata) { 
       stratum = Locations[i]
@@ -219,7 +199,7 @@ for (s in 1:nrow(beta_hat)) {
       
       # Temp-consumption model
       L.1<- exp((1/(T.0[stage]-CQ[stage]))*log(0.98*(1-CK.1[stage])/(CK.1[stage]*0.02))*(as.numeric(obs.temp.dat[1,i])-CQ[stage]))
-      L.2 <- exp((1/(T.L[stage]-T.M1))*log(0.98*(1-CK.4[stage])/(CK.4[stage]*0.02))*(T.L[stage]-as.numeric(obs.temp.dat[1,i])))
+      L.2 <- exp((1/(T.L[stage]-T.M[stage]))*log(0.98*(1-CK.4[stage])/(CK.4[stage]*0.02))*(T.L[stage]-as.numeric(obs.temp.dat[1,i])))
       K.A <- CK.1[stage]*L.1/(1+CK.1[stage]*(L.1-1))
       K.B <- CK.4[stage]*L.2/(1+CK.4[stage]*(L.2-1))
       TMP.fx[1,i] <- K.A*K.B
@@ -261,11 +241,7 @@ for (s in 1:nrow(beta_hat)) {
       delta.BEM[1,i] <- Wt[2,i]-Wt[1,i]
     }
     
-    for (d in 2:n.days) {
-      VB.L[d] <- VB.L[(d-1)]+(Linf-VB.L[(d-1)])*(1-exp(-VB.k*(1/365)))
-      VB.Wt[d] <- ln.a[2]*(VB.L[d]^ln.b[2])
-      delta.VB[d] <- VB.Wt[d]-VB.Wt[(d-1)]
-    }
+
 
 #now this is the rest of the days
 
@@ -278,7 +254,7 @@ for (i in 1:n.strata) { # r
         
         # Temp-consumption model
         L.1<- exp((1/(T.0[stage]-CQ[stage]))*log(0.98*(1-CK.1[stage])/(CK.1[stage]*0.02))*(as.numeric(obs.temp.dat[d,i])-CQ[stage]))
-        L.2 <- exp((1/(T.L[stage]-T.M1))*log(0.98*(1-CK.4[stage])/(CK.4[stage]*0.02))*(T.L[stage]-as.numeric(obs.temp.dat[d,i])))
+        L.2 <- exp((1/(T.L[stage]-T.M[stage]))*log(0.98*(1-CK.4[stage])/(CK.4[stage]*0.02))*(T.L[stage]-as.numeric(obs.temp.dat[d,i])))
         K.A <- CK.1[stage]*L.1/(1+CK.1[stage]*(L.1-1))
         K.B <- CK.4[stage]*L.2/(1+CK.4[stage]*(L.2-1))
         TMP.fx[d,i] <- K.A*K.B
@@ -324,14 +300,9 @@ for (i in 1:n.strata) { # r
   ### 4. Get summaries
   #L[47,] #terminal lengths
   
-  all.delta.BEM[,,s] <- delta.BEM
-  all.delta.VB[,s] <- delta.VB
-  all.L <- bind_rows(all.L, data.frame(Day = c(1:nrow(L)), Montezuma = L[,1], RioVista = L[,2], s = s))
-  all.VBL[,s] <- VB.L
-  all.Wt <- bind_rows(all.Wt, data.frame(Day = c(1:nrow(L)), Montezuma = Wt[,1], RioVista = Wt[,2], s = s))
-  all.VBWt[,s] <- VB.Wt
+  all.L <- bind_rows(all.L, data.frame(Day = c(1:nrow(L)), Montezuma = L[,1], RioVista = L[,2]))
+  all.Wt <- bind_rows(all.Wt, data.frame(Day = c(1:nrow(L)), Montezuma = Wt[,1], RioVista = Wt[,2]))
 
-}
   return(list(all.Wt, energyout))
 }
   
@@ -576,6 +547,19 @@ cages2024_BACT3= cagegrowth(PD.mn.array = zoop24, CDEC_wide = filter(CDEC_wide, 
                            beta_hat = beta_hat[1:200,], speeds = c(.1,0), ACT = 1, BACT = BACT3)
 
 
-##########no, let's do this right ############
-#and the set of ̂βk, that minimized the sum of squared residuals
-#(bioenergetics- model- predicted October weights minus observed weights) was identified as the optimal ̂βk.
+
+
+allcagesspeed2 = bind_rows(mutate(cages2024_ACT[[1]], Speed = "ACT = 12"), 
+                          mutate(cages2024_BACT2[[1]], Speed = "BACT = .149"),
+                          mutate(cages2024_BACT3[[1]], Speed = "BACT = 0.04"))
+
+
+all.Wtsp2 =  pivot_longer(allcagesspeed2, cols = c(RioVista, Montezuma), names_to = "Location", values_to = "Weight") %>%
+  filter(!is.na(Weight))
+
+ggplot(all.Wtsp2, aes(x = Day, y = Weight, color = Location)) + facet_wrap(~Speed)+ geom_smooth()#+
+#geom_point(alpha = 0.2)
+#so, yeah, a lot of variation based on the parameters. 
+#and there are a lot of coefficients inthe engergy term. Without knowing the variation in speed, it's hard to say much.
+#i'm going to keep it hand-wavey. 
+

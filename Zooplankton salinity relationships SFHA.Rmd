@@ -858,9 +858,12 @@ zoopscon24b = mutate(zoopscon24,
   mutate(Bigregion = case_when(Bigregion == "Confluence" ~ "Lower Sacramento",
                                TRUE ~ Bigregion))
 
+
+zoopscon24 = mutate(zoopscon24, Scenario2 = factor(Scenario, levels = c("NoAction", "GatesOnly", "X2Only"),
+                                                   labels = c("No-Action", "SMSCG, No X2", "No SMSCG, X2")))
 ggplot(filter(zoopscon24,Scenario != "Gates+X2"), aes(x = DOY, y = Biomass, fill = Taxon))+
   geom_area()+
-  facet_grid(Bigregion~Scenario, scales = "free_y")+
+  facet_grid(Bigregion~Scenario2, scales = "free_y")+
   
   scale_fill_manual(values = mypal)+
   scale_x_continuous(breaks = c(183, 214, 245, 275), labels = c("Jul", "Aug", "Sep", "Oct"), limits = c(180, 305))+
@@ -871,9 +874,11 @@ ggplot(filter(zoopscon24b, Taxon == "Pseudodiaptomus", !is.na(Month), Month !=6)
   geom_errorbar(aes(group = Scenario, ymin = lower, ymax = upper), position = "dodge")
 
 ggplot(filter(zoopscon24b, Taxon == "Pseudodiaptomus", !is.na(Month), Scenario != "Gates+X2", Month !=6), aes(x = Month, y = Biomass, fill = Scenario))+
+  scale_fill_manual(values = c("grey40", "dodgerblue3", "red3"), labels = c("No-Action", "No SMSCG, X2", "SMSCG, No X2"))+
   geom_col(position = "dodge")+ facet_wrap(~Bigregion, scales = "free_y")+
   geom_errorbar(aes(group = Scenario, ymin = lower, ymax = upper), position = "dodge")+
-  ylab("Median predicted \nbiomass of Pseudodiaptomus")
+  ylab("Median predicted \nbiomass of Pseudodiaptomus")+
+  theme_bw()
 
 ```
 Why does growth go down with x2 in some of the suisun regions?
