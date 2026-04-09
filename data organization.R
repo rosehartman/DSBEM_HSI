@@ -57,14 +57,17 @@ save(CDEC_wide, file = c("data/CDEC_wide_cages.RData"))
 load("C:/Users/rhartman/OneDrive - California Department of Water Resources/smelt cages/Smelt-cages/data/allcagezoops.RData")
 # I think I want to average the zooplankton from all samples over the previous two weeks. 
 names(allzoops)
-zoops = mutate(allzoops, uniqueID = paste(Date, Location, station),
-               InOut = case_when(str_detect(station, "Outside") ~ "Outside",
-                              str_detect(Location, "Inside") ~ "Inside"),
-                                                CageNum = str_sub(station, 1, 6)) %>%
+zoops = mutate(allzoops, uniqueID = paste(Date, Enclosure, Site),
+               InOut = case_when(str_detect(Enclosure, "Outside") ~ "Outside",
+                              str_detect(Enclosure, "Inside") ~ "Inside",
+                              is.na(Enclosure) ~ "Outside",
+                              !is.na(Enclosure) & str_length(Enclosure) <7 ~ "Inside"),
+                                                CageNum = str_sub(Enclosure, 1, 6)) %>%
   mutate(Taxon = str_remove(Taxon, "\\."),
          Taxon = str_remove(Taxon, " spp"),
          Taxon = str_remove(Taxon, " sp"),
-                            Taxon = str_remove(Taxon, " UNID"))
+                            Taxon = str_remove(Taxon, " UNID")) %>%
+  rename(Location = Enclosure)
 
 write.csv(sort(unique(zoops$Taxon)), file = "Cagezooptaxa.csv")
 
@@ -75,26 +78,115 @@ lookup = read_csv("Data/Zooptaxa.csv")
 
 zoopIBMR = left_join(zoops, lookup, by = c("Taxon" = "Taxa")) %>%
   mutate(BPUE = CPUE*Biomass/1000) %>% #convert from #=ug per ten gallons to mg/cm3
-  group_by(IBMR, Location, Date, uniqueID) %>%
+  group_by(IBMR, Location, Date, uniqueID, InOut, Site) %>%
     summarize(BPUE = sum(BPUE, na.rm =T)) 
 
 #add in zeros
 zoopIBMRzeros = zoopIBMR %>%
   filter(!is.na(IBMR)) %>%
-  select(BPUE, uniqueID, Location, Date, IBMR) %>%
+  select(BPUE, uniqueID, Location, Date, IBMR, InOut, Site) %>%
   pivot_wider(names_from = IBMR, values_from=BPUE, values_fill = 0) %>%
   mutate(Year = year(Date)) %>%
+
+  mutate(Site = case_when(Site %in% c("RV", "Rio Vista") ~ "RVB",
+                              Site %in% c("SM", "Montezuma", "Suisun Marsh") ~ "BDL",
+                              TRUE ~ Site)) %>% 
+  left_join(cagedates, by = ) %>%
+  filter(Date>= StartDate & Date <= EndDate, Site %in% c("BDL", "RVB"))
+
+
+#Plot of zooplankton density for report #########################################
+library(RColorBrewer)
+mypal = c(brewer.pal(8, "Paired"), brewer.pal(8, "Dark2"))
+mypal2 = c("Acanthocyclops" = "#A6CEE3", "Amphipoda"="#1F78B4", "Calanoid other"= "#B2DF8A",
+           "Chironomidae" = "#33A02C", "Cladocera" = "#FB9A99", "Copepod other"="#E31A1C",
+           "Cyclopoid other" = "#FDBF6F", "Eurytemora" = "#FF7F00", "Isopoda" = "#1B9E77",
+           "Limnoithona" = "#D95F02", "other" = "#7570B3", "Pseudodiaptomus" = "#E7298A",
+           "Rotifer" = "#66A61E",
+           "Bivalvia"="#E6AB02", "Barnacle" = "#A6761D","#666666")
+
+zoopCages = left_join(zoops, lookup, by = c("Taxon" = "Taxa")) %>%
+  mutate(BPUE = CPUE*Biomass/1000) %>% #convert from #=ug per ten gallons to mg/m3
+  group_by(SFHAsynthGroup, Location, Date, uniqueID, InOut, Site) %>%
+  summarize(BPUE = sum(BPUE, na.rm =T), CPUE = sum(CPUE, na.rm =T)) 
+
+#add in zeros
+zoopCagezeros = zoopCages %>%
+  filter(!is.na(SFHAsynthGroup)) %>%
+  select(BPUE, uniqueID, Location, Date, SFHAsynthGroup, InOut, Site) %>%
+  pivot_wider(names_from = SFHAsynthGroup, values_from=BPUE, values_fill = 0) %>%
+  mutate(Year = year(Date)) %>%
+  
+  mutate(Site = case_when(Site %in% c("RV", "Rio Vista") ~ "RVB",
+                          Site %in% c("SM", "Montezuma", "Suisun Marsh") ~ "BDL",
+                          TRUE ~ Site)) %>% 
   left_join(cagedates) %>%
-  mutate(Location = case_when(Location %in% c("RV", "Rio Vista") ~ "RVB",
-                              Location %in% c("SM", "Montezuma") ~ "BDL",
-                              TRUE ~ Location)) %>%
-  filter(Date>= StartDate & Date <= EndDate, Location %in% c("BDL", "RVB"))
+  filter(Date>= StartDate & Date <= EndDate, Site %in% c("BDL", "RVB"))
 
 
-#now put it in the right order and expand to all dates
+
+zoopCageslong = pivot_longer(zoopCagezeros, cols = c(Acanthocyclops:other),
+                            names_to = "Taxon", values_to = "BPUE") 
+
+zoopCageslong_ct =  zoopCages %>%
+  filter(!is.na(SFHAsynthGroup)) %>%
+  select(CPUE, uniqueID, Location, Date, SFHAsynthGroup, InOut, Site) %>%
+  pivot_wider(names_from = SFHAsynthGroup, values_from=CPUE, values_fill = 0) %>%
+  mutate(Year = year(Date)) %>%
+  
+  mutate(Site = case_when(Site %in% c("RV", "Rio Vista") ~ "RVB",
+                          Site %in% c("SM", "Montezuma", "Suisun Marsh") ~ "BDL",
+                          TRUE ~ Site)) %>% 
+  left_join(cagedates) %>%
+  filter(Date>= StartDate & Date <= EndDate, Site %in% c("BDL", "RVB")) %>%
+  pivot_longer(cols = c(Acanthocyclops:other),
+               names_to = "Taxon", values_to = "CPUE") 
+
+
+ggplot(zoopCageslong, aes(x = Date, y = BPUE, fill = Taxon))+ facet_wrap(Year~Site,
+                                                                   scales = "free")+
+  geom_area()
+
+CagemeanBPUE = group_by(zoopCageslong, Site, Date, Taxon, Year) %>%
+  summarize(BPUE = mean(BPUE, na.rm =T)) %>%
+  filter(Taxon != "Copepod nauplii")
+
+CagemeanCPUE = group_by(zoopCageslong_ct, Site, Date, Taxon, Year) %>%
+  summarize(CPUE = mean(CPUE, na.rm =T)) %>%
+  filter(Taxon != "Copepod nauplii")
+
+zoopcount = ggplot(CagemeanCPUE, aes(x = Date, y = CPUE, fill = Taxon))+ facet_grid(Site~Year,
+                                                                                             scales = "free", space = "free_x")+
+  geom_area() + theme_bw()+ ylab("Number per cubic meter")+
+  scale_fill_manual(values = mypal2, guide = NULL)
+
+ 
+zoopBM = ggplot(CagemeanBPUE, aes(x = Date, y = BPUE, fill = Taxon))+ facet_grid(Site~Year,
+                                                                       scales = "free", space = "free_x")+
+  geom_area() + theme_bw()+ ylab("Biomass (mg) per cubic meter")+
+ scale_fill_manual(values = mypal2, 
+                   # labels = c("Acartiella spp.", "Amphipods",
+                   #                            "Daphnia spp.", "Insects", "Limnoithona spp.",
+                   #                           "Other calanoid copepod adults",
+                   #                             "Other calanoid copepod juveniles",
+                   #                           "Other Cladocera", 
+                   #                            "Other cyclopoid copepod adults",
+                   #                             "other zooplankton",
+                   #                             "Pseudodiaptomus spp. adults",
+                   #                             "Pseudodiaptomus spp. juveniles",
+                   #                           "Rotifers"),
+                    name = NULL)+
+  theme(legend.position = "bottom")+
+  guides(fill = guide_legend(nrow = 4))
+
+zoopcount/zoopBM
+
+ggsave("plots/cagezooplankton.tif", width =8, height =8)
+
+#now put it in the right order and expand to all dates ##########################
 library(zoo)
 zoopIBMR2 = zoopIBMRzeros %>%
-  select(Location, Date, limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, 
+  select(Location, Site, Date, limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, 
          allcopnaup, daphnia, othcyc, other, eurytem, pdiapfor)%>%
   mutate(Period = case_when(Date  >= ymd("2019-10-08") & Date <= ymd("2019-10-16") ~ "A",
                             Date  > ymd("2019-10-16") & Date <= ymd("2019-10-21") ~ "B",
@@ -200,11 +292,13 @@ fmwt2019 = Zoopsynther(Data_type = "Community", Sources = c("EMP", "FMWT", "STN"
                        Years = c(2019:2024))
 crosswalk = read_csv("data/zoopstaxa.csv") %>%
   select(Taxlifestage, IBMR, CarbonWeight_ug) %>%
-  distinct()
+  distinct() %>%
+  mutate(IBMR = case_when(IBMR == "othcaladjuv" ~"othcaljuv",
+                          TRUE ~ IBMR))
 
-fmwt24 = read_csv("C:/Users/rhartman/OneDrive - California Department of Water Resources/salinity control gates/SMSCG/Data/smscgto2024_zooplankton_long.csv")
+#fmwt24 = read_csv("C:/Users/rhartman/OneDrive - California Department of Water Resources/salinity control gates/SMSCG/Data/smscgto2024_zooplankton_long.csv")
 
-fmwt2019_24 = bind_rows(fmwt2019, fmwt24) %>%
+fmwt2019_24 = fmwt2019 %>%
   mutate(Taxlifestage = str_replace_all(Taxlifestage, "Eurytemora affinis", "Eurytemora carolleeae"))
 
 fmwt2019a = left_join(fmwt2019_24, cagedates) %>%
@@ -218,14 +312,56 @@ fmwt2019a = left_join(fmwt2019_24, cagedates) %>%
 #weekly regional averages
 
 fmwtave = fmwt2019a %>%
-  mutate(BPUE = case_when(is.na(BPUE) ~CPUE*CarbonWeight_ug,
-                          TRUE ~ BPUE)) %>%
+  mutate(BPUE = CPUE*CarbonWeight_ug) %>%
   group_by(SampleID, Location, Date, Week, Year, IBMR)  %>%
   summarize(BPUE = sum(BPUE, na.rm = T)/1000) %>%
   group_by(Location, Week, Year, IBMR) %>%
   summarize(BPUE = mean(BPUE))
 
-#sigh. Missing pseudo juv from 2024, lets see if we can fix tat.
+#plot for report - fmwt zoops #######################################
+crosswalk2 = read_csv("data/zoopstaxa.csv") %>%
+  select(Taxlifestage, SFHAsynthGroup, CarbonWeight_ug) %>%
+  distinct() 
+
+#fmwt24 = read_csv("C:/Users/rhartman/OneDrive - California Department of Water Resources/salinity control gates/SMSCG/Data/smscgto2024_zooplankton_long.csv")
+
+
+fmwt2019ax = left_join(fmwt2019_24, cagedates) %>%
+  filter(Date > StartDate-10 & Date < EndDate +10) %>%
+  mutate(Week = week(Date)) %>%
+  left_join(crosswalk2) %>%
+  mutate(Location = case_when(Station %in% c("606", "609", "611", "NZ032") ~ "BDL",
+                              Station %in% c("706", "707", "708", "709", "711", "NZ068", "D22") ~ "RVB")) %>%
+  filter(!is.na(Location))
+
+#weekly regional averages
+
+fmwtavex = fmwt2019ax %>%
+  mutate(BPUE = CPUE*CarbonWeight_ug) %>%
+  group_by(SampleID, Location, Date, Week, Year,SFHAsynthGroup)  %>%
+  summarize(BPUE = sum(BPUE, na.rm = T)/1000, CPUE = sum(CPUE, na.rm =T)) %>%
+  group_by(Location, Week, Year, SFHAsynthGroup) %>%
+  summarize(BPUE = mean(BPUE), CPUE = mean(CPUE)) %>%
+  mutate(weekyear = paste("Sun", Week, Year), Date = parse_date_time(weekyear, "%a %U %Y"))
+
+
+fmwt01 = ggplot(filter(fmwtavex,  SFHAsynthGroup!="Copepod nauplii"), aes(x =Date, y = CPUE, fill = SFHAsynthGroup)) + 
+  geom_area()+
+  facet_grid(Location ~ Year, scales = "free_x", space = "free")+
+  scale_fill_manual(values = mypal2, guide = NULL)+
+  theme_bw()+theme(legend.position = "bottom")+ ylab("Number per cubic meter")
+
+fmwt02 = ggplot(filter(fmwtavex,  SFHAsynthGroup!="Copepod nauplii"), aes(x =Date, y = BPUE, fill = SFHAsynthGroup)) + 
+         geom_area()+
+  facet_grid(Location ~ Year, scales = "free_x", space = "free")+
+  scale_fill_manual(values = mypal2, name = NULL)+
+  theme_bw()+theme(legend.position = "bottom")+ ylab("Biomass (mg) per cubic meter")+
+  guides(fill = guide_legend(nrow = 4), name = NULL)
+
+fmwt01/fmwt02  
+
+ggsave("plots/fmwtcagezoops.tiff", width = 8, height =8)
+
 
 fmwtaveb = fmwtave %>%
   pivot_wider(id_cols = c(Location, Week, Year), names_from = IBMR, values_from = BPUE, values_fill = 0) %>%
@@ -523,6 +659,7 @@ stations_all <- read_csv("data/station_data.csv")%>%
   select(station, Latitude, Longitude) %>%
   st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326, remove = F)
 
+
 smeltregions = filter(R_DSIBM, SUBREGION %in% c("Confluence","NE Suisun","NW Suisun","SE Suisun","Suisun Marsh","SW Suisun","Lower Sacramento River", "Sacramento River")) %>%
   mutate(Region = case_match(SUBREGION, c("NE Suisun", "SE Suisun", "SW Suisun") ~ "Suisun Bay",
                              "NW Suisun" ~ "Grizzly Bay",
@@ -543,11 +680,18 @@ ggplot() +
 
 #I think i want fewer regions.Hm. But then it's harder to do the <6 thing. 
 #Maybe I'll run it with all the regions then do some averaging afterawrds
+
+#SMSCG locatin
+smscg = data.frame(Latitude = 38.09302607597083, Longitude = -121.8867088005608, label = "SMSCG")  %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) 
 ggplot() +
   geom_sf(data = WW_Delta)+
   geom_sf(data = smeltregions, aes(fill = Region), alpha = 0.3)+
   geom_sf(data =stations_all)+
   geom_sf_label(data =stations_all, aes(label = station), nudge_x = -0.01, hjust =0.8)+
+  geom_sf(data = smscg, shape =21, size =4, fill = "orange")+
+  geom_sf(data = smscg, shape =10, size =4)+
+  geom_sf_text(data = smscg, aes(label = label), nudge_x = 0.04,nudge_y = 0.01, fontface = "bold", size = 5)+
   coord_sf(ylim = c(38, 38.25), xlim = c(-122.15, -121.7))+
   scale_fill_manual(values= SFHApal,
                     name = "Region")+
@@ -613,6 +757,8 @@ ggsave("plots/sondetimeline.png", device = "png", width =6, height =7)
 
 recappalette = c("BY2024 1" = "yellow", "BY2024 2" = "blue", "BY2024 3" = "green4", "BY2024 4" = "purple",
                  "BY2024 5" = "tan", "BY2024 6" = "cyan", "BY2024 6" = "red2")
+
+
 
 
 ####chlorophyll timeline########
@@ -796,6 +942,53 @@ Temp_constant = array(unlist(test_constant),dim=c(153,11, 15),
 Tempx_constant = Temp_constant[c(1:153), c(5:11), c(1:15)]
 Tempx2_constant = apply(Tempx_constant, c(2,3), as.numeric)
 
+#constant summer temp
+TempaveSum = mean(filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(153:212))$ValueImputed)
+
+Tempwide_constantSum = filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(153:212))%>%
+  select(Region, Date, Parameter, Year, DOY, ValueImputed) %>%
+  distinct() %>%
+  mutate(ValueImputed = TempaveSum) %>%
+  arrange(Region) %>%
+  pivot_wider(names_from = Region, values_from = ValueImputed)
+
+
+test_constantSum = Tempwide_constantSum  %>%
+  split(list(Tempwide_constantSum$Year))
+
+Temp_constantSum = array(unlist(test_constantSum),dim=c(60,11, 15), 
+                      dimnames = list(c(1:60), names(Tempwide_constantSum),
+                                      unique(Tempwide_constantSum$Year)))
+
+#OK! Now i just need to get rid of the id columns
+Tempx_constantSum = Temp_constantSum[c(1:60), c(5:11), c(1:15)]
+Tempx2_constantSum = apply(Tempx_constantSum, c(2,3), as.numeric)
+
+#constant fall temp
+
+#constant summer temp
+Tempavefall = mean(filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(244:305))$ValueImputed)
+
+Tempwide_constantfall = filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(244:305))%>%
+  select(Region, Date, Parameter, Year, DOY, ValueImputed) %>%
+  distinct() %>%
+  mutate(ValueImputed = Tempavefall) %>%
+  arrange(Region) %>%
+  pivot_wider(names_from = Region, values_from = ValueImputed)
+
+
+test_constantfall = Tempwide_constantfall  %>%
+  split(list(Tempwide_constantfall$Year))
+
+Temp_constantfall = array(unlist(test_constantfall),dim=c(62,11, 15), 
+                         dimnames = list(c(1:62), names(Tempwide_constantSum),
+                                         unique(Tempwide_constantSum$Year)))
+
+#OK! Now i just need to get rid of the id columns
+Tempx_constantfall = Temp_constantfall[c(1:62), c(5:11), c(1:15)]
+Tempx2_constantfall = apply(Tempx_constantfall, c(2,3), as.numeric)
+
+
 ###########constant turbidity ######################################
 #constant turbidity
 # calculate average turbidity 
@@ -827,7 +1020,59 @@ Salwide = filter(AllWQmean2, Parameter == "salinity") %>%
   select(-Value) %>%
   pivot_wider(names_from = Region, values_from = ValueImputed)
 
-save(AllWQmean2, Tempx2, Turbx2, turbx2_constant, Tempx2_constant, file = "data/WaterQuality20102024.RData")
+
+
+#constant summer turbiidy
+TurbaveSum = mean(filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(153:212))$ValueImputed)
+
+Turbwide_constantSum = filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(153:212))%>%
+  select(Region, Date, Parameter, Year, DOY, ValueImputed) %>%
+  distinct() %>%
+  mutate(ValueImputed = TurbaveSum) %>%
+  arrange(Region) %>%
+  pivot_wider(names_from = Region, values_from = ValueImputed)
+
+
+test_constantSum = Turbwide_constantSum  %>%
+  split(list(Turbwide_constantSum$Year))
+
+Turb_constantSum = array(unlist(test_constantSum),dim=c(60,11, 15), 
+                         dimnames = list(c(1:60), names(Turbwide_constantSum),
+                                         unique(Turbwide_constantSum$Year)))
+
+#OK! Now i just need to get rid of the id columns
+Turbx_constantSum = Turb_constantSum[c(1:60), c(5:11), c(1:15)]
+Turbx2_constantSum = apply(Turbx_constantSum, c(2,3), as.numeric)
+
+#constant fall Turb
+
+Turbavefall = mean(filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(244:305))$ValueImputed)
+
+Turbwide_constantfall = filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(244:305))%>%
+  select(Region, Date, Parameter, Year, DOY, ValueImputed) %>%
+  distinct() %>%
+  mutate(ValueImputed = Turbavefall) %>%
+  arrange(Region) %>%
+  pivot_wider(names_from = Region, values_from = ValueImputed)
+
+
+test_constantfall = Turbwide_constantfall  %>%
+  split(list(Turbwide_constantfall$Year))
+
+Turb_constantfall = array(unlist(test_constantfall),dim=c(62,11, 15), 
+                          dimnames = list(c(1:62), names(Turbwide_constantSum),
+                                          unique(Turbwide_constantSum$Year)))
+
+#OK! Now i just need to get rid of the id columns
+Turbx_constantfall = Turb_constantfall[c(1:62), c(5:11), c(1:15)]
+Turbx2_constantfall = apply(Turbx_constantfall, c(2,3), as.numeric)
+
+
+
+
+save(AllWQmean2, Tempx2, Turbx2, turbx2_constant, Tempx2_constant, 
+     Tempx2_constantSum, Tempx2_constantfall, Turbx2_constantSum,
+     Turbx2_constantfall, file = "data/WaterQuality20102024.RData")
 
 
 ################mesozooplankton##########################################################################
@@ -879,6 +1124,17 @@ test = pivot_wider(zoopsallm, id_cols = c(SampleID, Station, SalSurf, Date, Year
 
 load("data/sfhazoops.RData")
 zoopsallm = mutate(sfhazoops, BPUE = BPUE/1000) #convert to mg
+
+#relative abundance plot #########################################
+ggplot(zoopsallm, aes(x = Month, y = BPUE, fill = IBMR)) + geom_col(position = "fill")+
+  facet_wrap(~Region)
+ggplot(filter(zoopsallm, IBMR != "other"), aes(x = Month, y = BPUE, fill = IBMR)) + geom_col(position = "fill")+
+  scale_fill_manual(values = mypal, name = "Taxa", labels = c("Acartiella", "Copepod Nauplii", "Daphnia",
+                                                              "Eurytemora juv.", "Eurytemora", "Limnoithona", "Other Calanoid",
+                                                              "Other Calanoid juv.", "other Cladocera", "Other Cyclopoids",
+                                                              "Psuedodiaptomus", "Pseudodiaptomus juv."))+ theme_bw()+
+  ylab("Proportional Biomass")
+
 
 daystaxa = merge(data.frame(Date = alldays), data.frame(IBMR = unique(zoopsallm$IBMR))) %>%
   merge(data.frame(Region = unique(zoopsallm$Region))) %>%
@@ -966,7 +1222,7 @@ save(zoopsmwide, zoopsmAve, zoopx2, file = "data/zoopsmwide.RData")
 
 
 zoops_constant = zoopsallm %>%
-  group_by(IBMR) %>%
+  group_by(IBMR, Month) %>%
   summarize(BPUE = mean(BPUE, na.rm =T)) %>%
   filter(!is.na(IBMR)) %>%
   full_join(daystaxa) %>%
@@ -977,7 +1233,9 @@ zoops_constant = zoopsallm %>%
   select(Region,  Date, Month, doy,  Year,
          limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
          daphnia, othcyc, other, eurytem, pdiapfor) %>%
-  mutate(Day = mday(Date)) 
+  mutate(Day = mday(Date)) %>%
+  filter(doy %in% c(153:305))%>%
+  arrange(Region)
 
 
 zoopsmwidef_constant = filter(zoops_constant, doy %in% c(153:305))%>%
@@ -997,9 +1255,69 @@ zoopx_constant = zoop_constant[c(1:153), c(6:17), c(1:7), c(1:15)]
 zoopx2_constant = apply(zoopx_constant, c(2,3,4), as.numeric)
 PD.mn.array_constant = zoopx2_constant #days by prey by strata by year!
 
+#just the summer
+zoops_constant_summer = filter(zoopsallm, doy %in% c(153:212)) %>%
+  group_by(IBMR, Month) %>%
+  summarize(BPUE = mean(BPUE, na.rm =T)) %>%
+  filter(!is.na(IBMR)) %>%
+  full_join(daystaxa) %>%
+  group_by(Region, IBMR, Year) %>%
+  arrange(doy) %>%
+  pivot_wider(id_cols = c(Region,  Date, Month, doy,  Year),
+              names_from = IBMR, values_from = BPUE) %>%
+  select(Region,  Date, Month, doy,  Year,
+         limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
+         daphnia, othcyc, other, eurytem, pdiapfor) %>%
+  mutate(Day = mday(Date))  %>%
+  arrange(Region) %>%
+  filter(doy %in% c(153:212))
 
 
-save(zoops_constant,zoopsmwidef_constant , zoopx2_constant, file = "data/zoopsmwide_constant.RData")
+test_constant_summer = zoops_constant_summer %>%
+  split(list(zoops_constant_summer$Region, zoops_constant_summer$Year))
+
+zoop_constant_summer = array(unlist(test_constant_summer),dim=c(60,18,7, 15), 
+                      dimnames = list(c(153:212), names(zoops_constant_summer), unique(zoops_constant_summer$Region),
+                                      unique(zoops_constant_summer$Year)))
+
+
+#OK! Now i just need to get rid of the id columns
+zoopx_constant_summer = zoop_constant_summer[c(1:60), c(6:17), c(1:7), c(1:15)]
+zoopx2_constant_summer = apply(zoopx_constant_summer, c(2,3,4), as.numeric)
+
+
+#just the fall
+zoops_constant_fall = filter(zoopsallm, doy %in% c(244:305)) %>%
+  group_by(IBMR, Month) %>%
+  summarize(BPUE = mean(BPUE, na.rm =T)) %>%
+  filter(!is.na(IBMR)) %>%
+  full_join(daystaxa) %>%
+  group_by(Region, IBMR, Year) %>%
+  arrange(doy) %>%
+  pivot_wider(id_cols = c(Region,  Date, Month, doy,  Year),
+              names_from = IBMR, values_from = BPUE) %>%
+  select(Region,  Date, Month, doy,  Year,
+         limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
+         daphnia, othcyc, other, eurytem, pdiapfor) %>%
+  mutate(Day = mday(Date))  %>%
+  arrange(Region)
+
+
+test_constant_fall = zoops_constant_fall %>%
+  split(list(zoops_constant_fall$Region, zoops_constant_fall$Year))
+
+zoop_constant_fall = array(unlist(test_constant_fall),dim=c(62,18,7, 15), 
+                             dimnames = list(c(244:305), names(zoops_constant_fall), unique(zoops_constant_fall$Region),
+                                             unique(zoops_constant_fall$Year)))
+
+
+#OK! Now i just need to get rid of the id columns
+zoopx_constant_fall = zoop_constant_fall[c(1:62), c(6:17), c(1:7), c(1:15)]
+zoopx2_constant_fall = apply(zoopx_constant_fall, c(2,3,4), as.numeric)
+
+
+save(zoops_constant,zoopsmwidef_constant , zoopx2_constant, 
+     zoopx2_constant_summer, zoopx2_constant_fall, file = "data/zoopsmwide_constant.RData")
 
 ########################################
 #waer qulity summaries

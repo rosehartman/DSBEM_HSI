@@ -18,6 +18,16 @@ library(latticeExtra)
 library(gsw)
 library(chillR)
 source("BEMfunction.R")
+
+mypal2 = c("2010" = "darkorange4","2011" = "darkblue", "2012" = "yellow2", 
+           "2013" = "orange", "2014" = "red3", 
+           "2015" = "red",
+           "2016" = "gold2", "2017" = "dodgerblue", 
+           "2018" = "yellow3", "2019" = "skyblue", "2020" = "darkorange",
+           "2021" = "firebrick", "2022" = "red4", 
+           "2023" = "royalblue", "2024" = "springgreen3")
+
+
 ### 1. Read model parameters and data
 n.strata <- 7 #"Confluence"   "NE Suisun"    "NW Suisun"    "SE Suisun"    "Suisun Marsh" "SW Suisun" "Lower Sacramento RIver"
 ex.strata = sort(c( "NE Suisun", "SE Suisun", "NW Suisun", "Lower Sacramento River", "Confluence", "SW Suisun",  "Suisun Marsh"))
@@ -268,7 +278,7 @@ Wtsummary2 = Wt.summary %>%
 
 ggplot(Wtsummary2, aes(x = Day, y = Weight, color = as.factor(Year))) + geom_line(linewidth =1)+ 
   facet_wrap(~BigRegion)+
-  scale_color_viridis_d(option = "turbo", name = NULL)+
+  scale_color_manual(values = mypal2, name = NULL)+
   theme_bw()+
   scale_x_continuous(breaks = c(0,30, 61, 92, 122, 153), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))+
   ylab("Predicted Weight (g)")
@@ -387,6 +397,7 @@ ggplot(Meangrowthsumfall, aes(x = Temperature, y = X2)) + geom_point()+ geom_smo
   ylab("x2")+
   xlab("Mean seasonal water temperature")+
   theme_bw()
+
 
 #x2 versus growth 6 psu
 ggplot(Meangrowthsum, aes(x = X2, y = Weight)) + geom_point()+ geom_smooth(method = "lm")+
@@ -680,12 +691,19 @@ ggplot(Meangrowth6aturb, aes(x = Day, y = Weight, color = as.factor(Year)))+
 allgrowth = bind_rows(mutate(Meangrowth6b, Type = "Observed"),
   mutate(Meangrowth6azoops, Type = "Zoops Only"),
                       mutate(Meangrowth6atemp, Type = "Temp Only"),
-                      mutate(Meangrowth6aturb, Type = "Turb Only"))
+                      mutate(Meangrowth6aturb, Type = "Turb Only"))%>%
+  mutate(Labels =factor(Type, levels = c("Observed", "Temp Only", "Turb Only", "Zoops Only"),
+                        labels = c("Observed", "Constant Turbidity\nand Zooplankton",
+                                   "Constant Temperature\nand Zooplankton",
+                                   "Constant Temperature \nand Turbidity")))
 
 ggplot(allgrowth, aes(x = Day, y = Weight, color = as.factor(Year)))+
-     geom_line(linewidth = 1)+scale_color_viridis_d(option = "turbo", name = NULL)+
+     geom_line(linewidth = 1)+
+  scale_color_manual(values = mypal2, name = NULL)+
      ylab("Predicted weight (g) in regions <6 PSU")+ theme_bw()+
-  facet_wrap(~Type)
+  facet_wrap(~Labels)+
+  scale_x_continuous(breaks = c(0,30, 61, 92, 123, 150), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov"))
+
 
 ggsave("plots/growthfactors_all.png", device = "png", width =7, height =5)
 
@@ -694,3 +712,57 @@ allgrowthmax = group_by(allgrowth, Type, Year) %>%
 
 ggplot(allgrowthmax, aes(x = as.factor(Year), y = Weight, fill =as.factor(Year)))+
   facet_wrap(~Type)+ geom_col()
+
+save(allgrowth, file = "data/allgrowth.RData")
+load("data/allgrowth.RData")
+
+allgrowth = mutate(allgrowth, Labels =factor(Type, levels = c("Observed", "Temp Only", "Turb Only", "Zoops Only"),
+                                           labels = c("Observed", "Varying Temperature, Constant Turbidity\nand Zooplankton",
+                                                      "Varying Turbidity, Constant Temperature\nand Zooplankton",
+                                                      "Varying Zooplankton, Constant Temperature \nand Turbidity")))
+
+###################survival ########################################################
+########### change in mortality #######################
+#Size-dependent mortality.—Mortality in the original baseline
+##version was constant within each stage but decreased with successive stages, 
+#so penalties in survival for slow growth occurred only through the delay in transition from 
+#larvae to postlarvae and from postlarvae to juveniles. Making mortality length dependent 
+#reflected the idea that vulnerability to predation mortality decreases with increasing size 
+#(Sogard 1997; Bailey and DuffyAnderson 2010; Gislason et al. 2010), so that faster growth would 
+#increase cumulative survival regardless of how stage transitions were triggered. We assumed that 
+#mortality rate was a function of length (ML;d−1) for larvae through adults; we then fit the function to the 
+#constant stage-specific mortality rates from the baseline simulation, associating the rate with the midpoint length of each stage:
+#  ML =−0.034 + 0.165 · L−0.322.
+
+#so going from weight to length would be
+WttoL = function(Weight) {
+  Length = (Weight/0.00000183)^(1/3.38)
+  return(Length)
+}
+WttoL(3)
+
+zooprunsum_mort_all = allgrowth %>%
+  mutate(Length = WttoL(Weight), Mortality = -0.034+0.165*Length^-0.322, Survived = 1-Mortality)
+
+survival_all = zooprunsum_mort_all %>%
+  group_by(Year, Type) %>%
+  summarize(Survived = prod(Survived)) %>%
+  mutate(Labels =factor(Type, levels = c("Observed", "Temp Only", "Turb Only", "Zoops Only"),
+                        labels = c("Observed", "Varying Temperature, Constant Turbidity\nand Zooplankton",
+                                   "Varying Turbidity, Constant Temperature\nand Zooplankton",
+                                    "Varying Zooplankton, Constant Temperature \nand Turbidity")))
+                                           
+yrs = read.csv("data/YearTypes_actions.csv") %>%
+  select(Year2, Yr.type, Action) %>%
+  distinct()
+survival_all = left_join(survival_all, yrs, by = c("Year" = "Year2")) %>%
+  mutate(Yr.type = factor(Yr.type, levels = c("C", "D", "BN", "AN", "W")))
+
+ggplot(survival_all, aes(x = Year, y = Survived, fill = Yr.type)) +
+  scale_fill_manual(values = c("red2", "orange", "yellow2", "green4", "skyblue"), name = "Year Type")+
+  geom_col(color = "grey25")+ facet_wrap(~Labels)+
+  coord_cartesian(ylim = c(0.08, 0.13))+ 
+  ylab("Proportion of population \nSurviving through Oct 31")+
+  theme_bw()
+
+ggsave("plots/propsurvival.png", width =8, height =6)

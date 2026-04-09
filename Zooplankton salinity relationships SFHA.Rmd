@@ -58,7 +58,9 @@ Available here: https://github.com/InteragencyEcologicalProgram/zooper
 
 ```{r}
 #why not add DOP?
-zoop_data<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT", "DOP"), Time_consistency = FALSE)
+#takeing DOP out agin for 2026 SFHA work.
+zoop_data<-Zoopsynther(Data_type="Community", Sources=c("EMP", "STN", "20mm", "FMWT"), Time_consistency = FALSE,
+                       Years = c(1995:2023))
 
 sum = group_by(zoop_data, Taxlifestage) %>%
   summarize(min = min(CPUE), max = max(CPUE), median = median(CPUE))

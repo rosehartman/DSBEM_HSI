@@ -16,6 +16,7 @@ library(paletteer)
 library(latticeExtra)
 library(gsw)
 library(chillR)
+library(arrayhelpers)
 source("BEMfunction.R")
 ### 1. Read model parameters and data
 n.strata <- 7 #"Confluence"   "NE Suisun"    "NW Suisun"    "SE Suisun"    "Suisun Marsh" "SW Suisun" "Lower Sacramento RIver"
@@ -146,19 +147,15 @@ zoopX2fall = zoopx2[92:153,,,]
 
 
 beta_hat <- read.table(file='data/beta_hat.txt') # MC filtering coefficients
-#this is model uncertainty
-#beta_hat <- read.table(file='BEM consumption rate project/beta_hat_IND.txt') # MC filtering coefficients
 
-
-
-#OK, this just fills in prey densities. I can do this with the zoop data. 
-
-sfharunsummer = smelt_bioenergetics(PD.mn.array = zoopX2summer, obs.temp.dat = Temp_summer, 
+#summer growth
+harunsummer = smelt_bioenergetics(PD.mn.array = zoopX2summer, obs.temp.dat = Temp_summer, 
                                     obs.turb.dat = Turb_summer, 
                               start.L = rep(23, 15), ex.strata = ex.strata, 
                               beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Summer")
-sfharunsummer2 = mutate(sfharunsummer, Season = "Summer")
+sfharunsummer2 = mutate(harunsummer, Season = "Summer")
 
+#fall growth
 sfharunfall = smelt_bioenergetics(PD.mn.array = zoopX2fall, obs.temp.dat = Temp_fall, 
                                     obs.turb.dat = Turb_fall, 
                                     start.L = rep(23, 15), ex.strata = ex.strata, 
@@ -259,6 +256,7 @@ ggplot(Meangrowth6bsa, aes(x = Day, y = Weight,color = as.factor(Year))) +
 ggsave("plots/sfha_growthlessthan6_seasonal.png", device = "png", width =8, height = 4)
 
 Meangrowthseas = Meangrowth6asa %>%
+  
   group_by(Year, s, Season) %>%
   summarise(Weight = max(Weight, na.rm =T)) %>%
   group_by(Year, Season) %>%
@@ -279,7 +277,8 @@ ggplot(Meangrowthseas, aes(x = X2, y = Weight)) + geom_point()+
   xlab("Mean X2")
 
 ggsave("plots/GrowthSeasonal.tiff", device = 'tiff', width =8, height = 4.5)
-
+save(Meangrowthseas, file = "outputs/Meangrowthseas.RData")
+write.csv(Meangrowthseas, file = "outputs/Meangrowthseas.csv", row.names = F)
 #linear model of final weight versus X2, with interaction of season
 
 seaslm = lm(Weight ~Season*X2, data = Meangrowthseas)
@@ -299,3 +298,153 @@ ggplot(Meangrowthseas, aes(x = Temperature, y = Weight)) + geom_point()+
 
 ggsave("plots/GrowthSeasonal_temps.tiff", device = 'tiff', width =8, height = 4.5
 )
+load("data/zoopsmwide_constant.RData")
+################ only change temp ##############
+sfharunsummer_temp = smelt_bioenergetics(PD.mn.array = zoopx2_constant_summer, obs.temp.dat = Temp_summer, 
+                                  obs.turb.dat = Turbx2_constantSum, 
+                                  start.L = rep(23, 15), ex.strata = ex.strata, 
+                                  beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Summer")
+sfharunsummer_temp = mutate(sfharunsummer_temp, Season = "Summer", metric = "Temperature")
+
+#fall growth
+sfharunfall_temp = smelt_bioenergetics(PD.mn.array = zoopx2_constant_fall, obs.temp.dat = Temp_fall, 
+                                  obs.turb.dat = Turbx2_constantfall, 
+                                  start.L = rep(23, 15), ex.strata = ex.strata, 
+                                  beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Fall")
+sfharunfall2_temp = mutate(sfharunfall_temp, Day = Day +90, Season = "Fall", metric = "Temperature")
+
+
+
+
+########### only change turbidity #############################
+
+sfharunsummer_turb = smelt_bioenergetics(PD.mn.array = zoopx2_constant_summer, obs.temp.dat = Tempx2_constantSum, 
+                                         obs.turb.dat = Turb_summer, 
+                                         start.L = rep(23, 15), ex.strata = ex.strata, 
+                                         beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Summer")
+sfharunsummer_turb = mutate(sfharunsummer_turb, Season = "Summer", metric = "Turbidity")
+
+#fall growth
+sfharunfall_turb = smelt_bioenergetics(PD.mn.array = zoopx2_constant_fall, obs.temp.dat = Tempx2_constantfall, 
+                                       obs.turb.dat = Turb_fall, 
+                                       start.L = rep(23, 15), ex.strata = ex.strata, 
+                                       beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Fall")
+sfharunfall2_turb = mutate(sfharunfall_turb, Day = Day +90, Season = "Fall", metric = "Turbidity")
+
+############### only change zoops ##################
+
+
+sfharunsummer_zoops = smelt_bioenergetics(PD.mn.array = zoopX2summer[1:60,,,], obs.temp.dat = Tempx2_constantSum, 
+                                         obs.turb.dat = Turbx2_constantSum, 
+                                         start.L = rep(23, 15), ex.strata = ex.strata, 
+                                         beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Summer")
+sfharunsummer2_zoops = mutate(sfharunsummer_zoops, Season = "Summer", metric = "Zoops")
+
+#fall growth
+sfharunfall_zoops = smelt_bioenergetics(PD.mn.array = zoopX2fall, obs.temp.dat = Tempx2_constantfall, 
+                                       obs.turb.dat = Turbx2_constantfall, 
+                                       start.L = rep(23, 15), ex.strata = ex.strata, 
+                                       beta_hat = beta_hat[1:200,], start.year = 2010, Season = "Fall")
+sfharunfall2_zoops = mutate(sfharunfall_zoops, Day = Day +90, Season = "Fall",  metric = "Zoops")
+
+#### put them all together and summarize #################
+
+seasonal_limit_runs = bind_rows(sfharunfall2_zoops, sfharunsummer2_zoops, 
+                                sfharunfall2_turb, sfharunsummer_turb, sfharunfall2_temp,
+                                sfharunsummer_temp, sfharunsummer2, sfharunfall2)%>%
+  rename(Region = Stratum) %>%
+  group_by(Region, Year, Day, Season, metric) %>%
+  summarize(MWeight = mean(Weight, na.rm =T), sdWeight = sd(Weight, na.rm =T),
+            MLength = mean(Length, na.rm =T), sdLength = sd(Length, na.rm =T))  %>%
+  mutate(metric = case_when(is.na(metric) ~ "Observed",
+                            TRUE ~ metric))
+
+
+ggplot(filter(seasonal_limit_runs, Region == "Suisun Marsh"), aes(x = Day, y = MWeight, color = Year))+
+  facet_grid(Season~metric) + geom_line()
+
+
+#now growth at les sthan 6 PSU
+
+
+############################################################
+#OK, now I need to throw out growht when it gets too salty
+
+#Maybe use growth per day, distribute smelt based on where they can grow, and figure out an average?
+
+#I should use the full dataset and get the varience. Somehow. 
+#also weight gain should be g/g.
+salx = ungroup(sal) %>%
+  select(Region2, Day, Year, GoodSalinity) %>%
+  distinct()
+
+Wtsalseasonal_limits = bind_rows(sfharunfall2_zoops, sfharunsummer2_zoops, 
+                                 sfharunfall2_turb, sfharunsummer_turb, sfharunfall2_temp,
+                                 sfharunsummer_temp, sfharunsummer2, sfharunfall2)%>%
+  rename(Region = Stratum) %>%
+  group_by(s, Region, Year, Season, metric) %>%
+  arrange(Day) %>%
+  mutate(gpergperd = (Weight -lag(Weight))/lag(Weight),
+         gpergperd = replace_na(gpergperd, 0)) %>%
+  ungroup() %>%
+  left_join(salx)
+
+#ggplot(Wtsalseasonal_limits, aes(x = Day, y = gpergperd)) + facet_wrap(metric~Season)
+  
+
+
+Meangrowth6asa_limits = Wtsalseasonal_limits  %>%
+  group_by(Year, Day, s, Season, metric) %>%
+  filter(GoodSalinity) %>%
+  summarise(Growth = mean(gpergperd, na.rm =T), Weight = mean(Weight, na.rm =T)) %>%
+  group_by(Year, s, Season, metric) %>%
+  mutate(Weight = cumsum(Growth*Weight)+0.073298) %>%
+  ungroup()
+
+Meangrowth6bsa_limits = group_by(Meangrowth6asa_limits, Year, Day, Season, metric) %>%
+  summarise(Growth = mean(Growth), Weight = mean(Weight)) %>%
+  mutate(Seasonx = factor(Season, levels = c("Summer", "Fall"),
+                          labels = c("Summer (Jun-Jul)", "Fall (Sep-Oct)")),
+         metric = case_when(is.na(metric) ~ "Observed",
+                            TRUE ~ metric))
+
+save(Meangrowth6bsa_limits, Meangrowth6asa_limits, Wtsalseasonal_limits, seasonal_limit_runs,
+     file = "outputs/SeasonalLimitRungs.RData")
+
+load("outputs/SeasonalLimitRungs.RData")
+
+Meangrowth6bsa_limits = Meangrowth6bsa_limits%>%
+#  mutate(Seasonx = case_when(Metric == "Observed" & is.na(Season))
+    mutate(Labels =factor(metric, levels = c("Observed", "Temperature", "Turbidity", "Zoops"),
+                        labels = c("Observed", "Varying Temperature, Constant Turbidity\nand Zooplankton",
+                                   "Varying Turbidity, Constant Temperature\nand Zooplankton",
+                                   "Varying Zooplankton, Constant Temperature \nand Turbidity")))
+
+ggplot(Meangrowth6bsa_limits, aes(x = Day, y = Weight,color = as.factor(Year))) + 
+  geom_line(linewidth = 1)+
+  facet_grid(Labels~Seasonx, scales = "free_x")+
+  scale_x_continuous(breaks = c(1, 31, 62, 92, 123, 153), labels = c("Jun", "Jul", "Aug", "Sep", "Oct", "Noc"))+
+  scale_color_manual(values = mypal2, name = NULL)+
+  ylab("Predicted weight (g) in regions <6 PSU")+
+  theme_bw()
+
+
+ggsave("plots/sfha_growthlessthan6_seasonal_limits.png", device = "png", width =8, height = 10)
+
+max = group_by(Meangrowth6bsa_limits, metric, Season, Year) %>%
+  
+  summarize(Weight = max(Weight))
+
+#add average temperature, zoops, etc.
+
+meanWQ = AllWQmean2 %>%
+  mutate(Season = case_when(Month %in% c(7,8) ~ "Summer",
+                            Month %in% c(9,10) ~ "Fall")) %>%
+  filter(!is.na(Season)) %>%
+  group_by(Season, Year, Parameter) %>%
+  summarize(MeanValue = mean(ValueImputed))
+
+Max = left_join(max, meanWQ)
+
+ggplot(filter(Max, metric =="Observed", !is.na(Season)), aes(x = MeanValue, y = Weight)) +  
+  facet_grid(Season~Parameter, scales = "free") + geom_point()+ geom_smooth(method = "lm")

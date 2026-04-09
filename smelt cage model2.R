@@ -412,7 +412,7 @@ ggplot(filter(all.Wtsp, Location == "Montezuma")) +
   
   geom_smooth(data = filter(all.Wtsp, Location == "RioVista"), aes(x = Day, y = Weight), color = "black",
               linetype =2)+
-  scale_colour_gradient(high = "goldenrod1", low = "firebrick4", name = "Relative Swimming\nSpeed")+
+  scale_colour_gradient(high = "goldenrod1", low = "firebrick4", name = "Relative Activity\nLevel")+
   ylab("Modeled weight (g)")+ xlab("Day of Experiment")+ theme_bw()+
   theme(legend.position = "bottom")
 

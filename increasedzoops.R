@@ -21,7 +21,9 @@ library(gsw)
 library(chillR)
 library(arrayhelpers)
 
+library(patchwork)
 library(RColorBrewer)
+source("BEMfunction.R")
 
 mypal = c(brewer.pal(8, "Set2"), brewer.pal(8, "Dark2"))
 
@@ -143,6 +145,44 @@ zoopsSuisun = filter(zoopsmwidef, Region %in% c("NE Suisun", "NW Suisun","SE Sui
   summarize(across(limno:pdiapfor, function(x) mean(x, na.rm = TRUE))) %>%
   mutate(level =1)
 zoopsS = zoopsSuisun
+
+#look at the mean and 95% conf interval by day 
+
+zoopsSuisunSD = filter(zoopsmwidef, Region %in% c("NE Suisun", "NW Suisun","SE Suisun")) %>%
+  group_by(doy) %>%
+  summarize(pdiapforMean = mean(pdiapfor, na.rm =T), pdiapjuvMean = mean(pdiapjuv, na.rm=T),
+            MaxPF = max(pdiapfor, na.rm = T), MaxPJ = max(pdiapjuv, na.rm = T),
+            MinPF = min(pdiapfor, na.rm = T), MinPJ = min(pdiapjuv, na.rm = T),
+            sdPF = sd(pdiapfor, na.rm =T), sdpj = sd(pdiapjuv, na.rm = T)) %>%
+  mutate(Totmean = pdiapforMean + pdiapjuvMean, TotMax = MaxPF+MaxPJ,
+         Totmin = MinPF + MinPJ, sdtot = (sdPF+sdpj)/2)
+
+ggplot(zoopsSuisunSD, aes(x =doy, y = Totmean)) + geom_point()+
+  geom_errorbar(aes(ymin = Totmin, ymax = TotMax))
+
+ggplot(zoopsSuisunSD, aes(x =doy, y = Totmean)) + geom_point()+
+  geom_errorbar(aes(ymin = Totmean-sdtot, ymax = Totmean+sdtot))
+
+
+ggplot(zoopsSuisunSD) + geom_smooth(aes(x =doy, y = Totmean), se = F)+
+  geom_smooth(aes(x =doy, y = Totmean+sdtot), se = F, linetype = 2)+
+  geom_smooth(aes(x =doy, y = Totmean-sdtot), se = F, linetype = 2)+
+  ylab("Pseudodiaptomus biomass (mg/m3)")
+
+annualpseudo = filter(zoopsmwidef, Region %in% c("NE Suisun", "NW Suisun","SE Suisun")) %>%
+  mutate(totP = pdiapjuv+pdiapfor, Month = month(Date)) %>%
+  group_by(Year, Month) %>% 
+  filter(Month != 11)%>%
+summarise(totP = mean(totP, na.rm =T))
+
+ggplot(annualpseudo , aes(x = Year, y = totP, fill = as.factor(Month)))+ 
+  geom_col(position = "dodge")+
+  ylab("Pseudodiaptomus biomass (mg/m3)")
+
+ggplot(annualpseudo , aes(x = Year, y = totP, fill = as.factor(Month)))+ 
+  geom_col(position = "dodge")+ facet_wrap(~Month, scales = "free_y")+
+  ylab("Pseudodiaptomus biomass (mg/m3)")
+
 #now replicate this for each biomass level
 Levels = c(0.01, 0.5, 1.5, 2, 5, 10, 20, 40, 100, 200,500)
 for(i in 1:10){
@@ -154,7 +194,9 @@ for(i in 1:10){
 
 pseudosave = ungroup(zoopsS) %>%
   group_by(level) %>%
-  summarize(pdiapfor = exp(mean(log(pdiapfor), na.rm =T)))
+  summarize(pdiapfor = exp(mean(log(pdiapfor), na.rm =T)),
+            pdiapjuv = exp(mean(log(pdiapjuv), na.rm =T))) %>%
+            mutate(pdiaptot = pdiapfor + pdiapjuv)
 yr.seq = pseudosave$level
 
 pseudosave_monthly = ungroup(zoopsS) %>%
@@ -165,6 +207,8 @@ pseudosave_monthly = ungroup(zoopsS) %>%
                             c(279:305) ~10)) %>%
   group_by(level, Month) %>%
   summarize(pdiapfor = mean(pdiapfor, na.rm =T))
+
+save(zoopsSuisun, pseudosave, pseudosave_monthly, file = "data/pseudosave.RData")
 
 #now the different temperature regimes
 
@@ -193,9 +237,53 @@ zoopx2_ps = apply(zoopx_ps, c(2,3,4), as.numeric)
 PD.mn.array= zoopx2_ps #days by prey by strata by year!
 
 
+#second version with quantiles ################################
+
+PseudoQuantiles = filter(zoopsmwidef, Region %in% c("NE Suisun", "NW Suisun","SE Suisun")) %>%
+  filter(!is.na(pdiapfor)) %>%
+  group_by(doy) %>%
+  summarize(pdiapfor_0.05 = quantile(pdiapfor, 0.05),pdiapjuv_0.05 = quantile(pdiapjuv, 0.05),
+            pdiapfor_0.25 = quantile(pdiapfor, 0.25),pdiapjuv_0.25 = quantile(pdiapjuv, 0.25), 
+            pdiapfor_0.50 = quantile(pdiapfor, 0.5),pdiapjuv_0.50 = quantile(pdiapjuv, 0.50),
+            pdiapfor_0.75 = quantile(pdiapfor, 0.75),pdiapjuv_0.75 = quantile(pdiapjuv, 0.75),
+            pdiapfor_0.95 = quantile(pdiapfor, 0.75),pdiapjuv_0.95 = quantile(pdiapjuv, 0.95)) 
+
+Pseuodquantlong = pivot_longer(PseudoQuantiles, cols = c(pdiapfor_0.05:pdiapjuv_0.95), names_to = c("Lifestage", "Quantile"),
+                               names_sep = "_") %>%
+  pivot_wider(names_from = "Lifestage", values_from = value)
+
+zoopquantiles = left_join(select(zoopsSuisun, -pdiapfor, -pdiapjuv, -level), Pseuodquantlong) 
+
+#now the different temperature regimes
+
+zoopsQS = bind_rows(mutate(zoopquantiles, Temp = "Temp_05"),
+                    mutate(zoopquantiles, Temp = "Tempave"),
+                    mutate(zoopquantiles, Temp = "Temp1"),
+                    mutate(zoopquantiles, Temp = "Temp15"),
+                    mutate(zoopquantiles, Temp = "Temp05"),
+                    mutate(zoopquantiles, Temp = "Temp_1"),
+                    mutate(zoopquantiles, Temp = "Temp_15"))  %>%
+select(Temp, Quantile,doy, 
+       limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
+       daphnia, othcyc, other, eurytem, pdiapfor) 
+
+test_psq= zoopsQS%>%
+  split(list(zoopsQS$Temp, zoopsQS$Quantile))
+
+zoop_psq= array(unlist(test_psq),dim=c(153,15,7, 5), 
+               dimnames = list(c(153:305), names(zoopsQS), unique(zoopsQS$Temp),
+                               unique(zoopsQS$Quantile)))
+
+
+#OK! Now i just need to get rid of the id columns
+zoopx_psq = zoop_psq[(1:153), c(4:15), c(1:7), c(1:5)]
+zoopx2_psq = apply(zoopx_psq, c(2,3,4), as.numeric) #days by prey by temperature by quantile!
+
+
+
 ### 2.
 
-#Different temperature regimes
+#Different temperature regimes ######################
 load("data/WaterQuality20102024.RData")
 
 #switch this to mean daily temp
@@ -264,6 +352,24 @@ Temp_x = array(unlist(test_x),dim=c(153,9, 11),
 Tempx_x = Temp_x[c(1:153), c(2:8), c(1:11)]
 Tempx2_x = apply(Tempx_x, c(2,3), as.numeric)
 
+#Quantile version #######
+
+Tempwidef_x2q = bind_rows(mutate(Tempwidef_x, Quantile = "0.05"),
+                         mutate(Tempwidef_x,Quantile = "0.25"),
+                         mutate(Tempwidef_x, Quantile = "0.50"),
+                         mutate(Tempwidef_x, Quantile = "0.75"),
+                         mutate(Tempwidef_x, Quantile = "0.95"))
+
+test_xq = Tempwidef_x2q  %>%
+  split(list(Tempwidef_x2q$Quantile))
+
+Temp_xq = array(unlist(test_xq),dim=c(153,9, 5), 
+               dimnames = list(c(153:305), names(Tempwidef_x2q),
+                               unique(Tempwidef_x2q$Quantile)))
+
+#OK! Now i just need to get rid of the id columns
+Tempx_xq = Temp_xq[c(1:153), c(2:8), c(1:5)]
+Tempx2_xq = apply(Tempx_x, c(2,3), as.numeric)
 
 
 #now turbidity (constant)
@@ -319,8 +425,27 @@ obs.turb.dat <- turbx2_x
 daylight = daylength(38.15, c(130:310))$Daylength*60
 LT.fx <- daylight/(daylength(38.15, 173)$Daylength*60) #daylenght divided by daylength at summer solstace
 
+#quantile version of turbidity ##############
+Turbwidef_x2q = bind_rows(mutate(Turbwidef_x, Quantile = "0.05"),
+                          mutate(Turbwidef_x,Quantile = "0.25"),
+                          mutate(Turbwidef_x, Quantile = "0.50"),
+                          mutate(Turbwidef_x, Quantile = "0.75"),
+                          mutate(Turbwidef_x, Quantile = "0.95"))
 
-### 3. Model bioenergetics and reference points
+
+test_xtq = Turbwidef_x2q  %>%
+  split(list(Turbwidef_x2q$Quantile))
+
+Turb_xq = array(unlist(test_xt),dim=c(153,9, 5), 
+               dimnames = list(c(153:305), names(Turbwidef_x2q),
+                               unique(Turbwidef_x2q$Quantile)))
+
+#OK! Now i just need to get rid of the id columns
+turbx_xq = Turb_x[c(1:153), c(2:8), c(1:5)]
+turbx2_xq = apply(turbx_x, c(2,3), as.numeric)
+
+
+### 3. Model bioenergetics  #############################
 
 zooprun = smelt_bioenergetics(PD.mn.array = zoopx2_ps, obs.temp.dat = Tempx2_x, obs.turb.dat = turbx2_x, 
                               start.L = rep(23, 15), ex.strata =c("Temp_15","Temp_1","Temp_05","Tempave","Temp05","Temp1","Temp15"),
@@ -346,7 +471,7 @@ zooprunsum = zooprun %>%
 ggplot(zooprunsum, aes(x = Day, y = MWeight, color = as.factor(Temp))) +
   geom_smooth()+
   facet_wrap(~Level)
-
+#weights never decrease, so they aren't starving. 
 
 #OK, how much did they grow over the whole summer (or fall)?
 Wtsum2_ps = zooprunsum %>%
@@ -367,7 +492,7 @@ Wtsum2_ps2 = zooprun %>%
   group_by(Level, Temp, s) %>%
   summarize(startweight = first(Weight), endwieght = last(Weight), diffweight = endwieght-startweight) %>%
   group_by(Level, Temp) %>%
-  summarize(sdweight = sd(diffweight), minweight = mean(diffweight) - sdweight, max = mean(diffweight)+ sdweight) %>%
+  summarize(meadidff = mean(diffweight), sdweight = sd(diffweight), minweight = mean(diffweight) - sdweight, max = mean(diffweight)+ sdweight) %>%
   left_join(rename(pseudosave, Level = level)) %>%
   mutate(Temp = factor(Temp, levels = c("Temp_15", "Temp_1", "Temp_05", "Tempave", 
                                         "Temp05", "Temp1", 
@@ -392,13 +517,14 @@ ggsave("plots/zoop_saturattion_curv.tiff", device = "tiff", width =8, height =5)
 
 #saturation curve with variance
 ggplot(Wtsum2_ps, aes(x = pdiapfor, y = diffweight, color = as.factor(Temp))) + 
-  geom_ribbon(data = Wtsum2_ps2, aes(x = pdiapfor, ymin = minweight, ymax = max, fill = as.factor(Temp), color = as.factor(Temp)), 
+  geom_ribbon(data = Wtsum2_ps2, aes(x = pdiapfor, ymin = minweight, ymax = max, 
+                                     fill = as.factor(Temp), color = as.factor(Temp)), 
               alpha = 0.2, inherit.aes = F, linetype =3, size = 0.25)+
-  ylab("Total summer/fall growth (g)")+ xlab("Average Pseudodiaptomus biomass (mg/m3)")+ geom_line(size =1)+
-  scale_color_brewer(palette = "Dark2", name = "Temperature\nscenario",
+  ylab("Growth (g) from \nJune 1 through Oct 31")+ xlab("Average Pseudodiaptomus biomass (mg/m3)")+ geom_line(size =1)+
+  scale_color_viridis_d( name = "Temperature\nscenario",
                      labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
                                 "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+ 
-  scale_fill_brewer(palette = "Dark2", name = "Temperature\nscenario",
+  scale_fill_viridis_d(name = "Temperature\nscenario",
                      labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
                                 "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+theme_bw()+
   coord_cartesian(xlim = c(0,55), ylim = c(2,3.9))
@@ -486,29 +612,108 @@ ggplot(Wtsum2_ps,  aes(x = pdiapfor, y = diffweight, color = Temp)) + geom_line(
   #scale_color_manual(values = mypal)
 
 Wtsum2_ave = filter(Wtsum2_ps, Temp == "Tempave")
+Wtsum2_ps = left_join(Wtsum2_ps, pseudosave)
+Wtsum2_ps2 = left_join(Wtsum2_ps2, pseudosave)
 
 
-
-ggplot(filter(Wtsum2_ps, Temp == "Tempave"),  aes(x = Level*100, y = diffweight)) + 
-  geom_ribbon(data = filter(Wtsum2_ps2, Temp == "Tempave"),
-              aes(x = Level*100, ymin = minweight, ymax = max), alpha = 0.2, inherit.aes = F, color = "grey")+
+pcurve = ggplot(filter(Wtsum2_ps, Temp == "Tempave", pdiaptot <5),  aes(x = pdiaptot, y = diffweight)) + 
+  geom_ribbon(data = filter(Wtsum2_ps2, Temp == "Tempave", pdiaptot <5),
+              aes(x = pdiaptot, ymin = minweight, ymax = max), alpha = 0.2, inherit.aes = F, color = "grey")+
   geom_point()+geom_line(size =1)+
   #geom_text(aes(label = paste(Level*100, "%", sep = "")), nudge_x = 3, nudge_y = 0.05)+
-  annotate("text", x =30, y = 2.46, label = "Average Pseudodiaptomus\n Growth = 2.45g", vjust =0, size =3)+
-  annotate("text", x =30, y = 2.56, label = "50% more Pseudodiaptomus\n Growth = 2.55g", vjust =0, size =3)+
-  annotate("text", x =30, y = 2.31, label = "50% less Pseudodiaptomus\n Growth = 2.30g", vjust =0, size =3)+
-  annotate("segment", x = -25, y = 2.55, xend = 150,linetype =2)+
-  annotate("segment", x = -25, y = 2.45, xend = 100, linetype =2)+
-  annotate("segment", x = -25, y = 2.3, xend = 50,  linetype =2)+
-  ylab("Total summer/fall growth (g)")+ xlab("Increase in Pseudodiaptomus (percent of average)")+theme_bw()+
-  coord_cartesian(xlim = c(0,250), ylim = c(2, 2.75))+
-  scale_x_continuous(breaks = c(0,50,100, 150, 200, 250), labels = c("0", "50%\n0.2mg/m3", "Average\n0.4mg/m3", "150%\n0.6mg/m3", "200%\n0.8mg/m3", "250%"))
-
+ # geom_segment(data = avePseudoAnnualSuisun, aes(x = totPseudo, y = 2, yend = 2.1, color = as.factor(Year)),
+ #              linewidth = 1)+ 
+  annotate("text", x =.30, y = 2.38, label = "Average Pseudodiaptomus", vjust =0, size =3)+
+  annotate("text", x =.30, y = 2.46, label = "50% more Pseudodiaptomus", vjust =0, size =3)+
+  annotate("text", x =.30, y = 2.23, label = "50% less Pseudodiaptomus", vjust =0, size =3)+
+  annotate("segment", x = 0, y = 2.44, xend = .972,linetype =2)+
+  annotate("segment", x = 0, y = 2.35, xend = .648, linetype =2)+
+  annotate("segment", x = 0, y = 2.21, xend = .324,  linetype =2)+
+  
+  annotate("text", x = 0, y = 2.82, label = "B", size =10)+
+  ylab("Total summer/fall growth (g)")+ xlab(NULL)+
+  theme_bw()+ coord_cartesian(xlim = c(0,2.5))
+ # coord_cartesian(xlim = c(0,250), ylim = c(2, 2.75))+
+#  scale_color_viridis_d(option = "turbo")
+  
+  # scale_x_continuous(breaks = c(0,50,100, 150, 200, 250), labels = c("0", "50%\n0.2mg/m3", "Average\n0.4mg/m3", "150%\n0.6mg/m3", "200%\n0.8mg/m3", "250%"))
+pcurve
 ggsave("plots/pseudo_percent_change_growth.tiff", device = "tiff", width =7, height =5)
 
-#OK, what is the percent increase in pseudodiaptomus per X2? By month or day of year?
+#boxplot of pseudo biomass for context
 
+
+pave = ggplot(avePseudoAnnualSuisun, aes(x =1, y = totPseudo)) + geom_boxplot()+coord_flip(ylim = c(0,2.5))+
+  geom_point(aes(color = as.factor(Year)), size =3)+ xlab(NULL)+ theme_bw()+
+  scale_color_viridis_d(option = "turbo", name = NULL)+
+  
+  annotate("text", x = 1.3, y = 0, label = "A", size =10)+
+  theme(axis.text.y = element_blank(), legend.position = "inside", legend.position.inside = c(1, .8),
+        legend.direction = "horizontal", legend.key.spacing =unit(.03, "cm"), legend.justification = 1)+ylab(NULL)
+ #OK, what is the percent increase in pseudodiaptomus per X2? By month or day of year?
+pave
 save(Wtsum2_ps, Wtsum2_ps2, pseudo_recentx, avePseudoAnnualSuisun , file = "outputs/foodSatCurveData.RData")
+load( "outputs/foodSatCurveData.RData")
+########### change in mortality #######################
+#Size-dependent mortality.—Mortality in the original baseline
+##version was constant within each stage but decreased with successive stages, 
+#so penalties in survival for slow growth occurred only through the delay in transition from 
+#larvae to postlarvae and from postlarvae to juveniles. Making mortality length dependent 
+#reflected the idea that vulnerability to predation mortality decreases with increasing size 
+#(Sogard 1997; Bailey and DuffyAnderson 2010; Gislason et al. 2010), so that faster growth would 
+#increase cumulative survival regardless of how stage transitions were triggered. We assumed that 
+#mortality rate was a function of length (ML;d−1) for larvae through adults; we then fit the function to the 
+#constant stage-specific mortality rates from the baseline simulation, associating the rate with the midpoint length of each stage:
+#  ML =−0.034 + 0.165 · L−0.322.
+
+#so going from weight to length would be
+WttoL = function(Weight) {
+  Length = (Weight/0.00000183)^(1/3.38)
+return(Length)
+}
+WttoL(3)
+
+zooprunsum_mort = zooprunsum %>%
+  mutate(Length = WttoL(MWeight), Mortality = -0.034+0.165*Length^-0.322, Survived = 1-Mortality)
+
+survival = zooprunsum_mort %>%
+  group_by(Level, Temp) %>%
+  summarize(Survived = prod(Survived)) %>%
+  left_join(Wtsum2_ps2) %>%
+  left_join(pseudosave)
+
+#test just one sitution and make sure i'm doing it right
+Test = filter(zooprunsum, Level ==1, Temp == "Tempave")%>%
+  mutate(Length = WttoL(MWeight), Mortality = -0.034+0.165*Length^-0.322, Survived = 1-Mortality)
+
+prod(Test$Survived)
+
+write.csv(filter(zooprunsum, Temp == "Tempave"), "outputs/growthzoops.csv", row.names =F)
+
+psurv = ggplot(filter(survival, Temp == "Tempave"), aes(x = pdiaptot, y = Survived)) +
+  geom_point()+geom_line(size =1)+
+  annotate("text", x =.25, y = 0.1245, label = "Average Pseudodiaptomus", vjust =0, size =3)+
+  annotate("text", x =.25, y = 0.120, label = "50% less Pseudodiaptomus", vjust =0, size =3)+
+  annotate("text", x =.25, y = 0.1275, label = "50% more Pseudodiaptomus", vjust =0, size =3)+
+  annotate("segment", x = 0, y = 0.127, xend = .972,linetype =2)+
+  annotate("segment", x = 0, y = 0.1241, xend = .648, linetype =2)+
+  annotate("segment", x = 0, y = 0.1193, xend = .324,  linetype =2)+
+  annotate("text", x = 0, y = 0.132, label = "C", size = 10)+
+  ylab("Proportional survival Jun-Oct")+ xlab("Mean Pseudodiapotmus biomass (mg/m3)")+theme_bw()+
+  coord_cartesian(xlim = c(0,2.50), ylim = c(0.105, 0.135))
+  #scale_color_viridis_d(option = "turbo", name = "Year")+
+  #scale_x_continuous(breaks = c(0,50,100, 150, 200, 250), labels = c("0", "50%\n0.2mg/m3", "Average\n0.4mg/m3", "150%\n0.6mg/m3", "200%\n0.8mg/m3", "250%"))
+psurv
+ggsave("plots/survivalcurve.tiff", device = "tiff", width = 6, height =4)
+
+
+pave/pcurve/psurv+ plot_layout(heights = c(1,2,2))
+
+ggsave("plots/pseudo_percent_change_wboxplot.tiff", device = "tiff", width =7, height =10)
+
+
+
+
 ###### If i increased zoops in suisun to levels in the river, what would happen? ##################
 #Is that the right question? or is it looking at difference in pseudo abundance with X2?
 
@@ -598,6 +803,255 @@ newout2 %>%
   summarize(change = mean(Percent_Change, na.rm =T))
 
 
+
+#####seasonal analysis############################
+
+
+
+#average biomass of pseudodiaptomus by month in Suisun Bay
+zoopsBay = filter(zoopsmwidef, Region %in% c("NE Suisun", "NW Suisun", "SE Suisun", "SW Suisun")) %>%
+  group_by(doy) %>%
+  summarize(across(limno:pdiapfor, function(x) mean(x, na.rm = TRUE))) %>%
+  mutate(level =15,SeasonScenario = "Base") %>%
+  mutate(Month = case_match(doy, c(153:181) ~ 6,
+                            c(182:213) ~7,
+                            c(214:245) ~8,
+                            c(246:276) ~9,
+                            c(277:305) ~10),
+         Season = case_when(Month %in% c(6:7) ~ "Summer",
+                            Month %in% c(8) ~ "Summer2",
+                            Month %in% c(9:10) ~ "Fall"))
+  
+zoopsB = zoopsBay
+
+
+#now replicate this for each biomass level
+Levels = c(0.01, 0.5,1, 1.5, 2, 5, 10, 20, 40, 100, 200,500)
+seasons = c("Base", "Summer", "Fall")
+for(j in 1:3){
+  for(i in 1:11){
+    Level = Levels[i]
+    Pseudo = zoopsBay %>%
+      mutate(level = Level, 
+             SeasonScenario =seasons[j],
+             pdiapfor = case_when(Season == SeasonScenario ~ level*pdiapfor,
+                                  TRUE ~ pdiapfor),
+             pdiapjuv = case_when(Season == SeasonScenario ~ level*pdiapjuv,
+                                  TRUE ~ pdiapjuv))
+    zoopsB = bind_rows(zoopsB, Pseudo)
+  }}
+
+
+ggplot(zoopsB, aes(x = doy, y = pdiapfor))+
+  facet_grid(SeasonScenario~level)+ geom_line()
+
+zoopsB = filter(zoopsB, level != 15)
+
+
+pseudosave_monthlyB = ungroup(zoopsB) %>%
+  group_by(level, Month, Season, SeasonScenario) %>%
+  summarize(pdiapfor = mean(pdiapfor, na.rm =T))
+
+ggplot(pseudosave_monthlyB, aes(x = Month, y = pdiapfor, color = SeasonScenario))+ geom_line()+
+  facet_wrap(~level, scales = "free")
+
+pseudosave_monthly2B = ungroup(zoopsB) %>%
+  group_by(Season) %>%
+  summarize(pdiapfor = mean(pdiapfor, na.rm =T))
+
+
+
+#organize correctly
+zoopsMMB =  zoopsB  %>%
+  select(Month, Season, SeasonScenario, level,doy, 
+         limno, othcaljuv, pdiapjuv, othcalad, acartela, othclad, allcopnaup, 
+         daphnia, othcyc, other, eurytem, pdiapfor) %>%
+  arrange(level) %>%
+  arrange(SeasonScenario) 
+
+ggplot(zoopsMMB, aes(x = doy, y = pdiapfor, color = SeasonScenario)) +
+  facet_wrap(~level, scales = "free") + geom_point()
+
+
+test_psMB= zoopsMMB%>%
+  split(list(zoopsMMB$SeasonScenario, zoopsMMB$level))
+
+zoop_psMB= array(unlist(test_psMB),dim=c(153,17,3, 11), 
+                dimnames = list(c(153:305), names(zoopsMMB), unique(zoopsMMB$SeasonScenario),
+                                sort(unique(zoopsMMB$level))))
+
+
+#OK! Now i just need to get rid of the id columns
+zoopx_psMB = zoop_psMB[(1:153), c(6:17), c(1:3), c(1:11)]
+zoopx2_psMB = apply(zoopx_psMB, c(2,3,4), as.numeric)#days by prey by strata by year!
+
+
+### 2.
+
+#Mean daily water temperature in Suisun Bay
+load("data/WaterQuality20102024.RData")
+
+Tempave = mean(filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(153:305))$ValueImputed)
+
+SuisunAveTemp = filter(AllWQmean2, Parameter == "watertemperature", DOY %in% c(153:305), 
+                       Region %in% c("NE Suisun", "NW Suisun", "SE Suisun", "SW Suisun")) %>%
+  group_by(DOY) %>%
+  summarize(Value = mean(ValueImputed, na.rm =T))
+
+Tempwide_xB = bind_rows(mutate(SuisunAveTemp, SeasonScenario ="Base"),
+                        mutate(SuisunAveTemp, SeasonScenario = "Summer"),
+                        mutate(SuisunAveTemp, SeasonScenario ="Fall")) %>%
+  pivot_wider(names_from = SeasonScenario, values_from = Value) 
+
+
+Levels = unique(zoopsB$level)
+Tempwidef_xB = filter(Tempwide_xB, DOY %in% c(153:305))
+
+Tempwidef_x2B = bind_rows(mutate(Tempwidef_xB, level = Levels[1]),
+                          mutate(Tempwidef_xB, level = Levels[2]),
+                          mutate(Tempwidef_xB, level = Levels[3]),
+                          mutate(Tempwidef_xB, level = Levels[4]),
+                          mutate(Tempwidef_xB, level = Levels[5]),
+                          mutate(Tempwidef_xB, level = Levels[6]),
+                          mutate(Tempwidef_xB, level = Levels[7]),
+                          mutate(Tempwidef_xB, level = Levels[8]),
+                          mutate(Tempwidef_xB, level = Levels[9]),
+                          mutate(Tempwidef_xB, level = Levels[10]),
+                          mutate(Tempwidef_xB, level = Levels[11])) %>%
+  arrange(level)
+
+test_xB = Tempwidef_x2B  %>%
+  split(list(Tempwidef_x2B$level))
+
+Temp_xB = array(unlist(test_xB),dim=c(153,5, 11), 
+                dimnames = list(c(153:305), names(Tempwidef_x2B),
+                                unique(Tempwidef_x2B$level)))
+
+#OK! Now i just need to get rid of the id columns
+Tempx_xB = Temp_xB[c(1:153), c(2:4), c(1:11)]
+Tempx2_xB = apply(Tempx_xB, c(2,3), as.numeric)
+
+
+
+#now turbidity (constant)
+
+
+Turbave = mean(filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(153:305))$ValueImputed)
+
+SuisunAveTurb = filter(AllWQmean2, Parameter == "turbidity", DOY %in% c(153:305), 
+                       Region %in% c("NE Suisun", "NW Suisun", "SE Suisun", "SW Suisun")) %>%
+  group_by(DOY) %>%
+  summarize(Value = mean(ValueImputed))
+
+turbwide_xB = bind_rows(mutate(SuisunAveTurb, SeasonScenario = "Base"),
+                        mutate(SuisunAveTurb, SeasonScenario = "Summer"),
+                        mutate(SuisunAveTurb,SeasonScenario = "Fall")) %>%
+  pivot_wider(names_from = SeasonScenario, values_from = Value) 
+
+
+Turbwidef_xB = filter(turbwide_xB, DOY %in% c(153:305))
+Turbwidef_x2B = bind_rows(mutate(Turbwidef_xB, level = Levels[1]),
+                          mutate(Turbwidef_xB, level =  Levels[2]),
+                          mutate(Turbwidef_xB, level =  Levels[3]),
+                          mutate(Turbwidef_xB, level =  Levels[4]),
+                          mutate(Turbwidef_xB, level =  Levels[5]),
+                          mutate(Turbwidef_xB, level =  Levels[6]),
+                          mutate(Turbwidef_xB, level =  Levels[7]),
+                          mutate(Turbwidef_xB, level =  Levels[8]),
+                          mutate(Turbwidef_xB, level =  Levels[9]),
+                          mutate(Turbwidef_xB, level =  Levels[10]),
+                          mutate(Turbwidef_xB, level =  Levels[11])) %>%
+  arrange(level)
+
+
+test_xtB = Turbwidef_x2B %>%
+  split(list(Turbwidef_x2B$level))
+
+Turb_xB = array(unlist(test_xtB),dim=c(153,5, 11), 
+                dimnames = list(c(153:305), names(Turbwidef_x2B),
+                                unique(Turbwidef_x2B$level)))
+
+#OK! Now i just need to get rid of the id columns
+turbx_xB = Turb_xB[c(1:153), c(2:4), c(1:11)]
+turbx2_xB = apply(turbx_xB, c(2,3), as.numeric)
+
+
+daylight = daylength(38.15, c(130:310))$Daylength*60
+LT.fx <- daylight/(daylength(38.15, 173)$Daylength*60) #daylenght divided by daylength at summer solstace
+
+
+
+zooprunSeasonal = smelt_bioenergetics(PD.mn.array = zoopx2_psMB, obs.temp.dat = Tempx2_xB, obs.turb.dat = turbx2_xB, 
+                               start.L = rep(23, 15), ex.strata =c("Base","Summer","Fall"),
+                               beta_hat = beta_hat[1:200,], start.year = 1)
+
+
+#relable the zooplankton levels correctly
+unique(zooprunSeasonal$Year)
+
+zooprunSeasonal = mutate(zooprunSeasonal, Level = case_match(Year,1 ~ 0.01,  2 ~ 0.5, 3 ~ 1, 4 ~ 1.5, 5 ~ 2, 6 ~ 5,
+                                               7~ 10, 8~20, 9 ~ 40, 10~ 100, 11 ~ 200),
+                  Month = case_match(Day, c(0:30) ~ 6,
+                                     c(31:62) ~7,
+                                     c(63:94) ~8,
+                                     c(95:125) ~9,
+                                     c(126:153) ~10)) %>%
+  rename(SeasonScenario = Stratum)
+
+zooprunsumSeas = zooprunSeasonal  %>%
+  group_by(Day,Level, SeasonScenario) %>%
+  summarize(MWeight = mean(Weight)) %>%
+  filter(MWeight >0)
+
+
+ggplot(zooprunsumSeas, aes(x = Day, y = MWeight, color = SeasonScenario))+
+  facet_wrap(~Level)+ geom_line()
+
+ggplot(zooprunsumSeas, aes(x = Day, y = MWeight, color = as.factor(Level)))+
+  facet_wrap(~SeasonScenario)+ geom_line()
+#
+
+aveps = group_by(pseudosave_monthlyB, level, SeasonScenario) %>%
+  summarize(pdiapfor = mean(pdiapfor)) %>%
+  rename(Level = level)
+zooprun2maxS = ungroup(zooprunsumSeas) %>% 
+  group_by(SeasonScenario, Level) %>%
+  summarize(Weight = max(MWeight, na.rm =T)) %>%
+  mutate(Levelx = factor(Level, 
+                         labels = c("90% less", "50% less","Average", "50% more", "100% more",
+                                    "500% more","10x more", "20 x more", "40 x more", "100 x more", "200 x more"))) %>%
+  left_join(aveps)
+
+ggplot(zooprun2maxS, aes(x = SeasonScenario, y = Weight)) +
+  facet_wrap(~Levelx)+ geom_col()+
+  #coord_cartesian(ylim = c(2.2, 3))+
+  ylab("Final Weight at end of October")+
+  xlab("Season where zooplankton increase")+
+  coord_cartesian(ylim = c(1.8, 2.8))
+
+
+ggplot(filter(zooprun2maxS, SeasonScenario != "Base"), 
+       aes(x = Level*100, y = Weight, color = SeasonScenario)) + geom_line()+
+  coord_cartesian(xlim = c(0,1500))+ xlab("Zooplankton increase - \nPercent of average")+
+  ylab("Final weight at end of October (g)")+ 
+  scale_color_manual(values = c("orange2", "green3"), name = "Season when zoops increase",
+                     labels = c("Fall: Sep-Oct", "Summer: Jun-Jul"))
+  
+
+pseudosave_monthly2B = mutate(pseudosave_monthly2B, SeasonScenario = Season) %>%
+  filter(Season != "Summer2")
+ggplot(filter(zooprun2maxS, SeasonScenario != "Base"),
+       aes(x = pdiapfor, y = Weight, color = SeasonScenario)) + geom_line()+
+  coord_cartesian(xlim = c(0,25))+
+  #geom_vline(data = pseudosave_monthly2B, aes(xintercept = pdiapfor, color = SeasonScenario))+
+  ylab("Final weight at end of October (g)")+ xlab("average zooplankton density (mg/m3)") + 
+  scale_color_manual(values = c("orange2", "green3"), name = "Season when zoops increase",
+                     labels = c("Fall: Sep-Oct", "Summer: Jun-Jul"))
+
+
+
+
+
 #########################################################################
 ## june gates versus september gates #############################
 
@@ -614,7 +1068,7 @@ zoopsmarsh = filter(zoopsmwidef, Region %in% c("Suisun Marsh")) %>%
                             c(277:305) ~10))
 zoopsM = zoopsmarsh
 
-
+####different months of increase ########################
 #Strata will be levels of zooplankton increase, years will be different months of zooplankton increase.
 #i'll just use constant temperature
 
@@ -852,3 +1306,86 @@ salspredicted = left_join(mutate(pseudosave_monthly2, pdiapfor = round(pdiapfor,
 
 #maybe i should use the linera model instead and do the same thing i did for X2. 
 load("C:/Users/rhartman/OneDrive - California Department of Water Resources/salinity control gates/SFHA_synthesis/outputs/zoopx2model.RData")
+
+
+##quantile bioenergetic run ###############################
+pseudosaveQ = ungroup(zoopsQS) %>%
+  group_by(Quantile) %>%
+  summarize(pdiapfor = exp(mean(log(pdiapfor), na.rm =T)),
+            pdiapjuv = exp(mean(log(pdiapjuv), na.rm =T))) %>%
+            mutate(pdiaptot = pdiapfor+pdiapjuv)
+
+zooprunq = smelt_bioenergetics(PD.mn.array = zoopx2_psq, obs.temp.dat = Tempx2_xq, obs.turb.dat = turbx2_xq, 
+                              start.L = rep(23, 15), ex.strata =c("Temp_15","Temp_1","Temp_05","Tempave","Temp05","Temp1","Temp15"),
+                              beta_hat = beta_hat[1:200,], start.year = 2010)
+
+
+#relable the zooplankton levels correctly
+unique(zooprunq$Year)
+
+zooprunq = mutate(zooprunq, Quantile = case_match(Year, 2010 ~ 0.05,2011 ~ 0.25, 2012 ~0.5, 2013 ~ 0.75, 2014 ~ 0.95),
+                 Month = case_match(Day, c(0:30) ~ 6,
+                                    c(31:62) ~7,
+                                    c(63:94) ~8,
+                                    c(95:125) ~9,
+                                    c(126:153) ~10)) %>%
+  rename(Temp = Stratum)
+
+zooprunsumq = zooprunq %>%
+  group_by(Day, Month, Quantile, Temp) %>%
+  summarize(MWeight = mean(Weight))
+
+ggplot(zooprunsumq, aes(x = Day, y = MWeight, color = as.factor(Temp))) +
+  geom_smooth()+
+  facet_wrap(~Quantile)
+
+
+#OK, how much did they grow over the whole summer (or fall)?
+
+#now do it keeping hte variability
+Wtsum2_ps2q = zooprunq %>%
+  mutate(doy = Day+153) %>%
+  left_join(select(Pseudo, doy, pdiapfor, pdiapjuv)) %>%
+  group_by(Quantile, Temp, s) %>%
+  summarize(startweight = first(Weight), endwieght = last(Weight), diffweight = endwieght-startweight) %>%
+  group_by(Quantile, Temp) %>%
+  summarize(meadidff = mean(diffweight), sdweight = sd(diffweight), minweight = mean(diffweight) - sdweight, max = mean(diffweight)+ sdweight) %>%
+  left_join(mutate(pseudosaveQ, Quantile = as.numeric(Quantile))) %>%
+  mutate(Temp = factor(Temp, levels = c("Temp_15", "Temp_1", "Temp_05", "Tempave", 
+                                        "Temp05", "Temp1", 
+                                        "Temp15")),
+         Tempnum = as.numeric(Temp)) 
+
+
+#saturation curve with variance
+ggplot(Wtsum2_ps2q, aes(x = pdiaptot, y = meadidff, color = as.factor(Temp))) + 
+  geom_ribbon(data = Wtsum2_ps2q, aes(x = pdiaptot, ymin = minweight, ymax = max, fill = as.factor(Temp), color = as.factor(Temp)), 
+              alpha = 0.2, inherit.aes = F, linetype =3, size = 0.25)+
+  ylab("Total summer/fall growth (g)")+ xlab("Average Pseudodiaptomus biomass (mg/m3)")+ geom_line(size =1)+
+  scale_color_brewer(palette = "Dark2", name = "Temperature\nscenario",
+                     labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
+                                "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+ 
+  scale_fill_brewer(palette = "Dark2", name = "Temperature\nscenario",
+                    labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
+                               "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+theme_bw()
+
+
+#put them both together maybe? ######################
+
+AllWtsum = bind_rows(Wtsum2_ps2, Wtsum2_ps2q) %>%
+  filter(pdiaptot <60)
+
+#saturation curve with variance
+ggplot(AllWtsum, aes(x = pdiaptot, y = meadidff, color = as.factor(Temp), fill = as.factor(Temp))) + 
+ # geom_ribbon(aes(x = pdiaptot, ymin = minweight, ymax = max, fill = as.factor(Temp), color = as.factor(Temp)), 
+  #            alpha = 0.2, inherit.aes = F, linetype =3, size = 0.25)+
+  ylab("Total summer/fall growth (g)")+ xlab("Average Pseudodiaptomus biomass (mg/m3)")+ geom_line(size =1)+
+  scale_color_brewer(palette = "Dark2", name = "Temperature\nscenario",
+                     labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
+                                "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+ 
+  scale_fill_brewer(palette = "Dark2", name = "Temperature\nscenario",
+                    labels = c("Mean Temp - 1.5 C", "Mean Temp - 1 C", "Mean Temp - 0.5 C", 
+                               "Mean Temp", "Mean Temp + 0.5 C", "Mean Temp + 1 C", "Mean Temp + 1.5 C"))+theme_bw()+
+  coord_cartesian(xlim = c(0, 30))
+
+#This is all jagged because the quantiles for pdiapjuv and ptiaptot may or may not hav elined up with ech other. 

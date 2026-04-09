@@ -1,54 +1,54 @@
-Lifestage,Taxname,Taxlifestage,IBMR,CarbonWeight_ug,IBMR2
-Adult,Acanthocyclops_UnID,Acanthocyclops_UnID Adult,othcyc,3.36,othcyc
-,,Acartia_UnID Adult,othcalad,2.98,othcalad
-,,Acartia_UnID Juvenile,othcaladjuv,1.3,othcaladjuv
-Adult,Acartiella sinensis,Acartiella sinensis Adult,acartela,2.67,acartela
-,,Acartiella sinensis Juvenile,othcaladjuv,1.16,othcaladjuv
-,,Acartiella sinensis Adult,acartela,2.67,acartela
-,,Acartiella_UnID Juvenile,othcaladjuv,1.16,othcaladjuv
-Adult,Asplanchna_UnID,Asplanchna_UnID Adult,other,0.3,other
-Adult,Bosmina longirostris,Bosmina longirostris Adult,othclad,0.6,othclad
-Adult,Calanoida_UnID,Calanoida_UnID Adult,othcalad,3,othcalad
-Juvenile,Calanoida_UnID,Calanoida_UnID Juvenile,othcaladjuv,1.5,othcaladjuv
-Adult,Cladocera_UnID,Cladocera_UnID Adult,othclad,1,othclad
-Larva,Copepoda_UnID,Copepoda_UnID Larva,allcopnaup,0.1,allcopnaup
-Adult,Cyclopoida_UnID,Cyclopoida_UnID Adult,othcyc,3.36,othcyc
-Juvenile,Cyclopoida_UnID,Cyclopoida_UnID Juvenile,othcyc,1.8,othcyc
-Adult,Daphnia_UnID,Daphnia_UnID Adult,daphnia,4,daphnia
-Adult,Daphniidae_UnID,Daphniidae_UnID Adult,daphnia,4,daphnia
-Larva,Decapoda_UnID,Decapoda_UnID Larva,other,3,other
-Adult,Diaptomidae_UnID,Diaptomidae_UnID Adult,othcalad,4,othcalad
-,,Eurytemora carolleeae Larva,allcopnaup,0.1,allcopnaup
-Adult,Eurytemora affinis,Eurytemora carolleeae Adult,eurytem,3,eurytem
-Juvenile,Eurytemora affinis,Eurytemora carolleeae Juvenile,othcaladjuv,1.4,othcaladjuv
-Undifferentiated,Harpacticoida_UnID,Harpacticoida_UnID Undifferentiated,other,1,other
-Adult,Keratella_UnID,Keratella_UnID Adult,other,0.04,other
-,,Limnoithona sinensis Adult,limno,0.13,
-Adult,Limnoithona tetraspina,Limnoithona tetraspina Adult,limno,0.09,limno
-Adult,Limnoithona_UnID,Limnoithona_UnID Adult,limno,0.09,limno
-,,Limnoithona_UnID Juvenile,limno,0.04,
-,,Oithona davisae Adult,othcyc,0.21,
-,,Oithona similis Adult,othcyc,0.5,
-,,Oithona_UnID Adult,othcyc,0.2,
-,,Oithona_UnID Juvenile,othcyc,0.07,
-Adult,Ostracoda_UnID,Ostracoda_UnID Adult,other,0.28,other
-Adult,Polyarthra_UnID,Polyarthra_UnID Adult,other,0.28,other
-Adult,Pseudodiaptomus forbesi,Pseudodiaptomus forbesi Adult,pdiapfor,2.66,pdiapfor
-,,Pseudodiaptomus marinus Adult,pdiapfor,4.9,
-Adult,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Adult,pdiapfor,2.66,pdiapfor
-Juvenile,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Juvenile,pdiapjuv,1.15,pdiapjuv
-,,Pseudodiaptomus_UnID Larva,allcopnaup,0.1,
-Adult,Rotifera_UnID,Rotifera_UnID Adult,other,0.12,other
-Adult,Sinocalanus doerrii,Sinocalanus doerrii Adult,othcalad,3.41,sino
-Juvenile,Sinocalanus doerrii,Sinocalanus doerrii Juvenile,othcaladjuv,1.81,sinojuv
-,,Sinocalanus doerrii Larva,allcopnaup,0.07,
-,,Sinocalanus_UnID Larva,allcopnaup,0.07,
-Adult,Synchaeta_UnID,Synchaeta_UnID Adult,other,0.12,other
-,,Tortanus_UnID Adult,othcalad,15.89,
-,,Tortanus_UnID Juvenile,othcalad,7.95,
-Adult,Trichocerca_UnID,Trichocerca_UnID Adult,other,0.12,other
-,,Diaphanosoma_UnID Adult,othclad,1,
-,,Diaptomidae_UnID Juvenile,othcaljuv,4,
-,,Sinocalanus_UnID Juvenile,othcaljuv,1.81,
-,,Cirripedia_UnID Larva,other,,
-,,Eurytemora_UnID Larva,allcopnaup,0.1,
+Lifestage,Taxname,Taxlifestage,IBMR,CarbonWeight_ug,IBMR2,SFHAsynthGroup
+Adult,Acartiella sinensis,Acartiella sinensis Adult,acartela,2.67,acartela,Calanoid other
+,,Acartiella sinensis Adult,acartela,2.67,acartela,Calanoid other
+Larva,Copepoda_UnID,Copepoda_UnID Larva,allcopnaup,0.1,allcopnaup,Copepod nauplii
+,,Eurytemora carolleeae Larva,allcopnaup,0.1,allcopnaup,Copepod nauplii
+,,Pseudodiaptomus_UnID Larva,allcopnaup,0.1,,Copepod nauplii
+,,Sinocalanus doerrii Larva,allcopnaup,0.07,,Copepod nauplii
+,,Sinocalanus_UnID Larva,allcopnaup,0.07,,Copepod nauplii
+,,Eurytemora_UnID Larva,allcopnaup,0.1,,Copepod nauplii
+Adult,Daphnia_UnID,Daphnia_UnID Adult,daphnia,4,daphnia,Cladocera
+Adult,Daphniidae_UnID,Daphniidae_UnID Adult,daphnia,4,daphnia,Cladocera
+Adult,Eurytemora affinis,Eurytemora carolleeae Adult,eurytem,3,eurytem,Eurytemora
+,,Limnoithona sinensis Adult,limno,0.13,,Limnoithona
+Adult,Limnoithona tetraspina,Limnoithona tetraspina Adult,limno,0.09,limno,Limnoithona
+Adult,Limnoithona_UnID,Limnoithona_UnID Adult,limno,0.09,limno,Limnoithona
+,,Limnoithona_UnID Juvenile,limno,0.04,,Limnoithona
+,,Acartia_UnID Adult,othcalad,2.98,othcalad,Calanoid other
+Adult,Calanoida_UnID,Calanoida_UnID Adult,othcalad,3,othcalad,Calanoid other
+Adult,Diaptomidae_UnID,Diaptomidae_UnID Adult,othcalad,4,othcalad,Calanoid other
+Adult,Sinocalanus doerrii,Sinocalanus doerrii Adult,othcalad,3.41,sino,Calanoid other
+,,Tortanus_UnID Adult,othcalad,15.89,,Calanoid other
+,,Tortanus_UnID Juvenile,othcalad,7.95,,Calanoid other
+,,Acartia_UnID Juvenile,othcaladjuv,1.3,othcaladjuv,Calanoid other
+,,Acartiella sinensis Juvenile,othcaladjuv,1.16,othcaladjuv,Calanoid other
+,,Acartiella_UnID Juvenile,othcaladjuv,1.16,othcaladjuv,Calanoid other
+Juvenile,Calanoida_UnID,Calanoida_UnID Juvenile,othcaladjuv,1.5,othcaladjuv,Calanoid other
+Juvenile,Eurytemora affinis,Eurytemora carolleeae Juvenile,othcaladjuv,1.4,othcaladjuv,Eurytemora
+Juvenile,Sinocalanus doerrii,Sinocalanus doerrii Juvenile,othcaladjuv,1.81,sinojuv,Calanoid other
+,,Diaptomidae_UnID Juvenile,othcaljuv,4,,Calanoid other
+,,Sinocalanus_UnID Juvenile,othcaljuv,1.81,,Calanoid other
+Adult,Bosmina longirostris,Bosmina longirostris Adult,othclad,0.6,othclad,Cladocera
+Adult,Cladocera_UnID,Cladocera_UnID Adult,othclad,1,othclad,Cladocera
+,,Diaphanosoma_UnID Adult,othclad,1,,Cladocera
+Adult,Acanthocyclops_UnID,Acanthocyclops_UnID Adult,othcyc,3.36,othcyc,Acanthocyclops
+Adult,Cyclopoida_UnID,Cyclopoida_UnID Adult,othcyc,3.36,othcyc,Cyclopoid other
+Juvenile,Cyclopoida_UnID,Cyclopoida_UnID Juvenile,othcyc,1.8,othcyc,Cyclopoid other
+,,Oithona davisae Adult,othcyc,0.21,,Cyclopoid other
+,,Oithona similis Adult,othcyc,0.5,,Cyclopoid other
+,,Oithona_UnID Adult,othcyc,0.2,,Cyclopoid other
+,,Oithona_UnID Juvenile,othcyc,0.07,,Cyclopoid other
+Adult,Asplanchna_UnID,Asplanchna_UnID Adult,other,0.3,other,Rotifer
+Larva,Decapoda_UnID,Decapoda_UnID Larva,other,3,other,other
+Undifferentiated,Harpacticoida_UnID,Harpacticoida_UnID Undifferentiated,other,1,other,other
+Adult,Keratella_UnID,Keratella_UnID Adult,other,0.04,other,Rotifer
+Adult,Ostracoda_UnID,Ostracoda_UnID Adult,other,0.28,other,other
+Adult,Polyarthra_UnID,Polyarthra_UnID Adult,other,0.28,other,Rotifer
+Adult,Rotifera_UnID,Rotifera_UnID Adult,other,0.12,other,Rotifer
+Adult,Synchaeta_UnID,Synchaeta_UnID Adult,other,0.12,other,Rotifer
+Adult,Trichocerca_UnID,Trichocerca_UnID Adult,other,0.12,other,Rotifer
+,,Cirripedia_UnID Larva,other,,,Barnacle
+Adult,Pseudodiaptomus forbesi,Pseudodiaptomus forbesi Adult,pdiapfor,2.66,pdiapfor,Pseudodiaptomus
+,,Pseudodiaptomus marinus Adult,pdiapfor,4.9,,Pseudodiaptomus
+Adult,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Adult,pdiapfor,2.66,pdiapfor,Pseudodiaptomus
+Juvenile,Pseudodiaptomus_UnID,Pseudodiaptomus_UnID Juvenile,pdiapjuv,1.15,pdiapjuv,Pseudodiaptomus
